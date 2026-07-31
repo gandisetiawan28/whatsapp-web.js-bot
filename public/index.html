@@ -1,0 +1,1484 @@
+<!doctype html>
+<html lang="id">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>WhatsApp Bot Dashboard Control Panel</title>
+        <!-- Google Fonts -->
+        <link
+            href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+            rel="stylesheet"
+        />
+        <!-- FontAwesome Icons -->
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+        />
+        <!-- Custom Style -->
+        <link rel="stylesheet" href="style.css" />
+        <!-- Socket.io Client -->
+        <script src="/socket.io/socket.io.js"></script>
+        <!-- QRCode.js Library -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    </head>
+    <body>
+        <div class="app-container">
+            <!-- HEADER -->
+            <header class="app-header">
+                <div class="header-logo">
+                    <i class="fa-brands fa-whatsapp logo-icon"></i>
+                    <div class="logo-text">
+                        <h1>WWebJS Bot Manager</h1>
+                        <p>Dashboard Pengendali Bot WhatsApp</p>
+                    </div>
+                </div>
+                <div class="connection-pill disconnected" id="connection-pill">
+                    <span class="status-dot pulsing" id="status-dot"></span>
+                    <span class="status-text" id="status-text"
+                        >DISCONNECTED</span
+                    >
+                </div>
+            </header>
+
+            <!-- NAVIGATION TABS -->
+            <nav class="tab-navigation">
+                <button class="tab-btn active" data-tab="dashboard-tab">
+                    <i class="fa-solid fa-chart-line"></i> Dashboard
+                </button>
+                <button class="tab-btn" data-tab="chat-tab" id="btn-chat-tab">
+                    <i class="fa-solid fa-comments"></i> Live Chats
+                </button>
+                <button class="tab-btn" data-tab="broadcast-tab">
+                    <i class="fa-solid fa-bullhorn"></i> Pesan & Broadcast
+                </button>
+                <button class="tab-btn" data-tab="autoreply-tab">
+                    <i class="fa-solid fa-robot"></i> Auto-Reply
+                </button>
+                <button class="tab-btn" data-tab="group-tab">
+                    <i class="fa-solid fa-users-gear"></i> Group Manager
+                </button>
+                <button
+                    class="tab-btn"
+                    data-tab="campaign-tab"
+                    id="btn-campaign-tab"
+                >
+                    <i class="fa-solid fa-folder-open"></i> Campaign Manager
+                    <span class="tab-badge hidden" id="campaign-tab-badge"
+                        >0</span
+                    >
+                </button>
+                <button class="tab-btn" data-tab="ai-tab">
+                    <i class="fa-solid fa-brain"></i> AI Assistant
+                </button>
+            </nav>
+
+            <!-- MAIN LAYOUT -->
+            <main class="main-content">
+                <!-- TAB 1: DASHBOARD -->
+                <div id="dashboard-tab" class="tab-pane">
+                    <div class="dashboard-grid">
+                        <!-- LEFT COLUMN -->
+                        <section class="grid-column">
+                            <div class="card status-card">
+                                <div class="card-header">
+                                    <h2>
+                                        <i class="fa-solid fa-signal icon"></i>
+                                        Koneksi WhatsApp Web
+                                    </h2>
+                                </div>
+                                <div class="card-body connection-body">
+                                    <div
+                                        class="status-display-wrapper"
+                                        id="status-display-wrapper"
+                                    >
+                                        <p
+                                            class="status-description"
+                                            id="status-description"
+                                        >
+                                            Menghubungkan ke server backend...
+                                        </p>
+                                        <div
+                                            class="spinner"
+                                            id="status-spinner"
+                                        ></div>
+                                    </div>
+                                    <div
+                                        class="qr-container hidden"
+                                        id="qr-container"
+                                    >
+                                        <div class="qr-box" id="qrcode"></div>
+                                        <p class="qr-instruction">
+                                            Pindai QR code ini menggunakan
+                                            aplikasi WhatsApp di HP Anda untuk
+                                            login (Tautkan Perangkat).
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- RIGHT COLUMN -->
+                        <section class="grid-column">
+                            <div class="card console-card">
+                                <div class="card-header">
+                                    <h2>
+                                        <i
+                                            class="fa-solid fa-terminal icon"
+                                        ></i>
+                                        Live Activity Console
+                                    </h2>
+                                    <button
+                                        class="clear-btn"
+                                        id="clear-console-btn"
+                                        title="Bersihkan Konsol"
+                                    >
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </button>
+                                </div>
+                                <div class="card-body console-body">
+                                    <div
+                                        class="console-output"
+                                        id="console-output"
+                                    >
+                                        <div class="log-line system">
+                                            [SYSTEM] Selamat datang di Dashboard
+                                            WWebJS Bot. Menunggu log
+                                            aktivitas...
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+
+                <!-- TAB 2: LIVE CHATS -->
+                <div id="chat-tab" class="tab-pane hidden">
+                    <div class="chat-room-layout">
+                        <!-- Chat Sidebar (Daftar Chat) -->
+                        <div class="chat-sidebar">
+                            <div class="sidebar-header">
+                                <h3>
+                                    <i class="fa-solid fa-comment-dots"></i>
+                                    Percakapan Terakhir
+                                </h3>
+                                <button
+                                    class="refresh-btn"
+                                    id="refresh-chats-btn"
+                                    title="Muat Ulang Chat"
+                                >
+                                    <i class="fa-solid fa-arrows-rotate"></i>
+                                </button>
+                            </div>
+                            <div
+                                class="chat-list-container"
+                                id="chat-list-container"
+                            >
+                                <p class="list-empty-msg">
+                                    WhatsApp belum siap. Pastikan status READY.
+                                </p>
+                            </div>
+                        </div>
+                        <!-- Chat Window -->
+                        <div
+                            class="chat-window-container"
+                            id="chat-window-container"
+                        >
+                            <div
+                                class="chat-window-empty"
+                                id="chat-window-empty"
+                            >
+                                <i
+                                    class="fa-regular fa-comments chat-empty-icon"
+                                ></i>
+                                <p>
+                                    Pilih chat dari menu kiri untuk membaca dan
+                                    membalas pesan.
+                                </p>
+                            </div>
+                            <div class="chat-window hidden" id="chat-window">
+                                <div class="chat-window-header">
+                                    <div class="chat-header-main">
+                                        <h3 id="active-chat-name">Nama Chat</h3>
+                                        <span
+                                            class="chat-jid-label"
+                                            id="active-chat-jid"
+                                            >0000000000@c.us</span
+                                        >
+                                    </div>
+                                    <button
+                                        class="view-members-btn hidden"
+                                        id="view-members-btn"
+                                        title="Lihat Anggota Grup"
+                                        aria-label="Lihat Anggota Grup"
+                                    >
+                                        <i class="fa-solid fa-users"></i> Lihat
+                                        Anggota
+                                    </button>
+                                </div>
+                                <div
+                                    class="group-members-list-wrapper hidden"
+                                    id="group-members-list-wrapper"
+                                >
+                                    <div
+                                        class="group-members-list"
+                                        id="group-members-list"
+                                    >
+                                        <!-- Anggota grup dimuat di sini -->
+                                    </div>
+                                </div>
+                                <div
+                                    class="chat-window-body"
+                                    id="chat-messages-container"
+                                >
+                                    <!-- Pesan-pesan akan dimuat di sini -->
+                                </div>
+                                <div class="chat-window-footer">
+                                    <form
+                                        id="chat-reply-form"
+                                        class="chat-reply-form"
+                                    >
+                                        <input
+                                            type="text"
+                                            id="chat-reply-input"
+                                            placeholder="Tulis pesan..."
+                                            autocomplete="off"
+                                            required
+                                        />
+                                        <button
+                                            type="submit"
+                                            class="chat-send-btn"
+                                            id="chat-reply-submit"
+                                            title="Kirim Pesan"
+                                            aria-label="Kirim Pesan"
+                                        >
+                                            <i
+                                                class="fa-solid fa-paper-plane"
+                                            ></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: PESAN & BROADCAST -->
+                <div id="broadcast-tab" class="tab-pane hidden">
+                    <div class="dashboard-grid">
+                        <!-- LEFT COLUMN: SINGLE MESSAGE & MEDIA SENDER -->
+                        <section class="grid-column">
+                            <!-- Kirim Pesan Tunggal (Teks) -->
+                            <div class="card form-card">
+                                <div class="card-header">
+                                    <h2>
+                                        <i
+                                            class="fa-solid fa-paper-plane icon"
+                                        ></i>
+                                        Kirim Pesan Tunggal
+                                    </h2>
+                                </div>
+                                <div class="card-body">
+                                    <form
+                                        id="single-send-form"
+                                        class="dashboard-form"
+                                    >
+                                        <div class="form-group">
+                                            <label for="single-phone"
+                                                >Nomor Telepon Tujuan</label
+                                            >
+                                            <div class="input-wrapper">
+                                                <i
+                                                    class="fa-solid fa-phone input-icon"
+                                                ></i>
+                                                <input
+                                                    type="text"
+                                                    id="single-phone"
+                                                    placeholder="Contoh: 6281234567890"
+                                                    required
+                                                />
+                                            </div>
+                                            <span class="input-hint"
+                                                >Gunakan kode negara di depan
+                                                (tanpa tanda + atau spasi)</span
+                                            >
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="single-message"
+                                                >Pesan Teks</label
+                                            >
+                                            <textarea
+                                                id="single-message"
+                                                rows="3"
+                                                placeholder="Ketik pesan Anda di sini..."
+                                                required
+                                            ></textarea>
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            class="submit-btn"
+                                            id="single-submit-btn"
+                                        >
+                                            <span>Kirim Pesan</span>
+                                            <i
+                                                class="fa-solid fa-circle-chevron-right"
+                                            ></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <!-- Kirim Media & File -->
+                            <div class="card form-card">
+                                <div class="card-header">
+                                    <h2>
+                                        <i
+                                            class="fa-solid fa-file-arrow-up icon"
+                                        ></i>
+                                        Kirim Media & Dokumen
+                                    </h2>
+                                </div>
+                                <div class="card-body">
+                                    <form
+                                        id="media-send-form"
+                                        class="dashboard-form"
+                                    >
+                                        <div class="form-group">
+                                            <label for="media-phone"
+                                                >Nomor Telepon Tujuan</label
+                                            >
+                                            <div class="input-wrapper">
+                                                <i
+                                                    class="fa-solid fa-phone input-icon"
+                                                ></i>
+                                                <input
+                                                    type="text"
+                                                    id="media-phone"
+                                                    placeholder="Contoh: 6281234567890"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="media-file"
+                                                >Pilih File (Gambar / PDF /
+                                                Video / Audio)</label
+                                            >
+                                            <input
+                                                type="file"
+                                                id="media-file"
+                                                class="file-input-field"
+                                                required
+                                            />
+                                            <span class="input-hint"
+                                                >Ukuran file maksimal disarankan
+                                                &lt; 15 MB agar tidak
+                                                crash.</span
+                                            >
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="media-caption"
+                                                >Caption (Keterangan
+                                                Gambar/Video)</label
+                                            >
+                                            <textarea
+                                                id="media-caption"
+                                                rows="2"
+                                                placeholder="Tulis caption (opsional, hanya berlaku untuk gambar/video)..."
+                                            ></textarea>
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            class="submit-btn"
+                                            id="media-submit-btn"
+                                        >
+                                            <span>Kirim File</span>
+                                            <i
+                                                class="fa-solid fa-file-circle-check"
+                                            ></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- RIGHT COLUMN: BROADCAST -->
+                        <section class="grid-column">
+                            <div class="card form-card">
+                                <div class="card-header">
+                                    <h2>
+                                        <i
+                                            class="fa-solid fa-bullhorn icon"
+                                        ></i>
+                                        Broadcast (Blast Pesan Massal)
+                                    </h2>
+                                </div>
+                                <div class="card-body">
+                                    <form
+                                        id="broadcast-form"
+                                        class="dashboard-form"
+                                    >
+                                        <div class="form-group">
+                                            <label for="broadcast-phones"
+                                                >Daftar Nomor Telepon
+                                                Penerima</label
+                                            >
+                                            <textarea
+                                                id="broadcast-phones"
+                                                rows="4"
+                                                placeholder="Masukkan satu nomor per baris, contoh:&#10;6281234567890&#10;6281298765432"
+                                                required
+                                            ></textarea>
+                                            <span class="input-hint"
+                                                >Satu nomor tujuan per baris
+                                                (hanya angka).</span
+                                            >
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="broadcast-message"
+                                                >Isi Pesan Siaran</label
+                                            >
+                                            <textarea
+                                                id="broadcast-message"
+                                                rows="3"
+                                                placeholder="Ketik isi pesan siaran Anda di sini..."
+                                                required
+                                            ></textarea>
+                                        </div>
+
+                                        <div
+                                            class="progress-container hidden"
+                                            id="broadcast-progress-container"
+                                        >
+                                            <div class="progress-header">
+                                                <span class="progress-title"
+                                                    >Proses Pengiriman</span
+                                                >
+                                                <span
+                                                    class="progress-val"
+                                                    id="progress-value"
+                                                    >0 / 0</span
+                                                >
+                                            </div>
+                                            <div class="progress-bar-bg">
+                                                <div
+                                                    class="progress-bar-fill"
+                                                    id="progress-bar-fill"
+                                                ></div>
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="submit"
+                                            class="submit-btn broadcast-btn"
+                                            id="broadcast-submit-btn"
+                                        >
+                                            <span>Mulai Broadcast</span>
+                                            <i class="fa-solid fa-bolt"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+
+                <!-- TAB 4: AUTO-REPLY -->
+                <div id="autoreply-tab" class="tab-pane hidden">
+                    <div class="autoreply-layout">
+                        <!-- Config Status Bot (ON/OFF) -->
+                        <div class="card auto-toggle-card">
+                            <div class="card-body toggle-body">
+                                <div class="toggle-info">
+                                    <h3>Status Fitur Auto-Reply</h3>
+                                    <p>
+                                        Jika diaktifkan, bot akan membalas
+                                        otomatis pesan masuk yang sesuai
+                                        keyword.
+                                    </p>
+                                </div>
+                                <div class="switch-container">
+                                    <span
+                                        class="switch-label-status"
+                                        id="bot-toggle-status-text"
+                                        >OFF</span
+                                    >
+                                    <label class="switch-control">
+                                        <input
+                                            type="checkbox"
+                                            id="bot-status-checkbox"
+                                            aria-label="Aktifkan Auto-Reply"
+                                        />
+                                        <span class="switch-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="dashboard-grid">
+                            <!-- LEFT PANEL: TAMBAH ATURAN BARU -->
+                            <div class="card form-card">
+                                <div class="card-header">
+                                    <h2>
+                                        <i
+                                            class="fa-solid fa-plus-circle icon"
+                                        ></i>
+                                        Tambah Aturan Balas Baru
+                                    </h2>
+                                </div>
+                                <div class="card-body">
+                                    <form
+                                        id="add-rule-form"
+                                        class="dashboard-form"
+                                    >
+                                        <div class="form-group">
+                                            <label for="rule-keyword"
+                                                >Kata Kunci (Keyword)</label
+                                            >
+                                            <input
+                                                type="text"
+                                                id="rule-keyword"
+                                                placeholder="Contoh: info"
+                                                required
+                                            />
+                                            <span class="input-hint"
+                                                >Mencocokkan pesan masuk (tidak
+                                                sensitif huruf
+                                                besar/kecil)</span
+                                            >
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="rule-reply"
+                                                >Pesan Balasan</label
+                                            >
+                                            <textarea
+                                                id="rule-reply"
+                                                rows="4"
+                                                placeholder="Ketik pesan balasan otomatis..."
+                                                required
+                                            ></textarea>
+                                            <span class="input-hint"
+                                                >Anda bisa menggunakan format
+                                                tebal seperti *kata*</span
+                                            >
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            class="submit-btn"
+                                            id="add-rule-submit"
+                                        >
+                                            <span>Tambah Aturan</span>
+                                            <i
+                                                class="fa-solid fa-circle-plus"
+                                            ></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <!-- RIGHT PANEL: DAFTAR ATURAN SAAT INI -->
+                            <div class="card rules-list-card">
+                                <div class="card-header">
+                                    <h2>
+                                        <i
+                                            class="fa-solid fa-list-check icon"
+                                        ></i>
+                                        Daftar Aturan Balasan Aktif
+                                    </h2>
+                                </div>
+                                <div class="card-body table-body">
+                                    <div class="table-responsive">
+                                        <table class="rules-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Keyword</th>
+                                                    <th>Pesan Balasan</th>
+                                                    <th class="col-actions">
+                                                        Aksi
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="rules-table-body">
+                                                <tr>
+                                                    <td
+                                                        colspan="3"
+                                                        class="table-empty"
+                                                    >
+                                                        Belum ada aturan balas
+                                                        otomatis yang dibuat.
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 5: GROUP MANAGER -->
+                <div id="group-tab" class="tab-pane hidden">
+                    <div class="dashboard-grid">
+                        <!-- LEFT COLUMN: CREATE GROUP -->
+                        <div class="card form-card">
+                            <div class="card-header">
+                                <h2>
+                                    <i
+                                        class="fa-solid fa-users-rectangle icon"
+                                    ></i>
+                                    Buat Grup Baru
+                                </h2>
+                            </div>
+                            <div class="card-body">
+                                <form
+                                    id="create-group-form"
+                                    class="dashboard-form"
+                                >
+                                    <div class="form-group">
+                                        <label for="group-name"
+                                            >Nama Grup</label
+                                        >
+                                        <div class="input-wrapper">
+                                            <i
+                                                class="fa-solid fa-quote-left input-icon"
+                                            ></i>
+                                            <input
+                                                type="text"
+                                                id="group-name"
+                                                placeholder="Nama grup baru"
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="group-members"
+                                            >Daftar Nomor Anggota Grup (Satu
+                                            nomor per baris)</label
+                                        >
+                                        <textarea
+                                            id="group-members"
+                                            rows="5"
+                                            placeholder="Masukkan nomor HP anggota, contoh:&#10;6281234567890&#10;6281298765432"
+                                            required
+                                        ></textarea>
+                                        <span class="input-hint"
+                                            >Catatan: Pastikan nomor tersebut
+                                            adalah kontak WhatsApp aktif
+                                            Anda.</span
+                                        >
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        class="submit-btn"
+                                        id="group-submit-btn"
+                                    >
+                                        <span>Buat Grup</span>
+                                        <i class="fa-solid fa-user-group"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- RIGHT COLUMN: GET GROUP MEMBERS -->
+                        <div class="card form-card">
+                            <div class="card-header">
+                                <h2>
+                                    <i class="fa-solid fa-users icon"></i>
+                                    Daftar Grup & Anggota
+                                </h2>
+                                <button
+                                    class="clear-btn"
+                                    id="refresh-groups-btn"
+                                    title="Muat Ulang Daftar Grup"
+                                    aria-label="Muat Ulang Daftar Grup"
+                                >
+                                    <i class="fa-solid fa-arrows-rotate"></i>
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div
+                                    class="form-group"
+                                    style="margin-bottom: 20px"
+                                >
+                                    <label for="group-select">Pilih Grup</label>
+                                    <select
+                                        id="group-select"
+                                        class="group-select-dropdown"
+                                    >
+                                        <option value="">
+                                            -- Pilih Grup WhatsApp --
+                                        </option>
+                                    </select>
+                                </div>
+                                <div
+                                    class="group-viewer-members-box hidden"
+                                    id="group-viewer-members-box"
+                                >
+                                    <h4
+                                        style="
+                                            margin-bottom: 12px;
+                                            font-size: 0.9rem;
+                                            font-weight: 600;
+                                        "
+                                    >
+                                        Anggota Grup:
+                                    </h4>
+                                    <div
+                                        class="group-viewer-members-list"
+                                        id="group-viewer-members-list"
+                                    >
+                                        <!-- List anggota grup -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 6: CAMPAIGN MANAGER -->
+                <div id="campaign-tab" class="tab-pane hidden">
+                    <div class="dashboard-grid">
+                        <!-- LEFT COLUMN: CREATE CAMPAIGN -->
+                        <div class="card form-card">
+                            <div class="card-header">
+                                <h2>
+                                    <i class="fa-solid fa-folder-plus icon"></i>
+                                    Buat Projek Siaran Baru
+                                </h2>
+                            </div>
+                            <div class="card-body">
+                                <form
+                                    id="create-campaign-form"
+                                    class="dashboard-form"
+                                >
+                                    <div class="form-group">
+                                        <label for="campaign-name"
+                                            >Nama Projek Siaran</label
+                                        >
+                                        <div class="input-wrapper">
+                                            <i
+                                                class="fa-solid fa-font input-icon"
+                                            ></i>
+                                            <input
+                                                type="text"
+                                                id="campaign-name"
+                                                placeholder="Contoh: Promo Diskon Kemerdekaan"
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="campaign-message"
+                                            >Pesan Template</label
+                                        >
+                                        <textarea
+                                            id="campaign-message"
+                                            rows="5"
+                                            placeholder="Ketik isi pesan di sini...&#10;Gunakan {name} untuk nama penerima secara dinamis.&#10;Contoh: Halo {name}, ini pesan khusus untuk Anda."
+                                            required
+                                        ></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="campaign-recipients"
+                                            >Nomor Penerima (Format: Nama,Nomor
+                                            HP - Satu per baris)</label
+                                        >
+                                        <textarea
+                                            id="campaign-recipients"
+                                            rows="6"
+                                            placeholder="Budi,628123456789&#10;Siti,62811223344&#10;62899887766 (jika tanpa nama)"
+                                            required
+                                        ></textarea>
+                                        <span class="input-hint"
+                                            >Gunakan format
+                                            <b>Nama,NomorHP</b> atau hanya
+                                            <b>NomorHP</b> per baris.</span
+                                        >
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        class="submit-btn broadcast-btn"
+                                        id="campaign-submit-btn"
+                                    >
+                                        <span>Buat Projek Siaran</span>
+                                        <i class="fa-solid fa-plus-circle"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- RIGHT COLUMN: CAMPAIGNS LIST -->
+                        <div class="card rules-list-card">
+                            <div class="card-header">
+                                <h2>
+                                    <i class="fa-solid fa-list-check icon"></i>
+                                    Daftar Projek Siaran
+                                </h2>
+                                <button
+                                    class="clear-btn"
+                                    id="refresh-campaigns-btn"
+                                    title="Muat Ulang Projek"
+                                    aria-label="Muat Ulang Projek"
+                                >
+                                    <i class="fa-solid fa-arrows-rotate"></i>
+                                </button>
+                            </div>
+                            <div class="card-body table-body">
+                                <div class="table-responsive">
+                                    <table class="rules-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Projek</th>
+                                                <th>Detail & Progress</th>
+                                                <th>Status</th>
+                                                <th class="col-actions">
+                                                    Aksi
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="campaigns-table-body">
+                                            <tr>
+                                                <td
+                                                    colspan="4"
+                                                    class="table-empty"
+                                                >
+                                                    Belum ada projek siaran yang
+                                                    dibuat.
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 7: AI ASSISTANT -->
+                <div id="ai-tab" class="tab-pane hidden">
+                    <div class="dashboard-grid">
+                        <!-- LEFT COLUMN: GENERAL SETTINGS -->
+                        <div class="card form-card">
+                            <div class="card-header">
+                                <h2>
+                                    <i class="fa-solid fa-brain icon"></i> AI
+                                    Auto-Reply Settings
+                                </h2>
+                            </div>
+                            <div class="card-body">
+                                <form
+                                    id="ai-config-form"
+                                    class="dashboard-form"
+                                >
+                                    <div
+                                        class="card toggle-body"
+                                        style="
+                                            background: rgba(
+                                                255,
+                                                255,
+                                                255,
+                                                0.02
+                                            );
+                                            margin-bottom: 0px;
+                                            border: 1px solid
+                                                var(--border-color);
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                            padding: 16px;
+                                            border-radius: 10px;
+                                            gap: 16px;
+                                        "
+                                    >
+                                        <div class="toggle-info">
+                                            <h3
+                                                style="
+                                                    font-size: 1rem;
+                                                    font-weight: 600;
+                                                    margin-bottom: 4px;
+                                                "
+                                            >
+                                                Status AI Auto-Reply
+                                            </h3>
+                                            <p
+                                                style="
+                                                    font-size: 0.8rem;
+                                                    color: var(
+                                                        --color-text-secondary
+                                                    );
+                                                "
+                                            >
+                                                Jika ON, pesan masuk yang tidak
+                                                cocok dengan keyword static akan
+                                                dibalas menggunakan AI.
+                                            </p>
+                                        </div>
+                                        <div class="switch-container">
+                                            <span
+                                                class="switch-label-status"
+                                                id="ai-toggle-status-text"
+                                                style="
+                                                    font-size: 0.85rem;
+                                                    font-weight: 700;
+                                                    color: var(
+                                                        --color-text-secondary
+                                                    );
+                                                    margin-right: 8px;
+                                                "
+                                                >OFF</span
+                                            >
+                                            <label
+                                                class="switch-control"
+                                                style="
+                                                    position: relative;
+                                                    display: inline-block;
+                                                    width: 44px;
+                                                    height: 24px;
+                                                "
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    id="ai-status-checkbox"
+                                                    aria-label="Aktifkan AI Auto-Reply"
+                                                    style="
+                                                        opacity: 0;
+                                                        width: 0;
+                                                        height: 0;
+                                                    "
+                                                />
+                                                <span
+                                                    class="switch-slider"
+                                                    style="
+                                                        position: absolute;
+                                                        cursor: pointer;
+                                                        top: 0;
+                                                        left: 0;
+                                                        right: 0;
+                                                        bottom: 0;
+                                                        background-color: rgba(
+                                                            255,
+                                                            255,
+                                                            255,
+                                                            0.1
+                                                        );
+                                                        transition: 0.3s;
+                                                        border-radius: 24px;
+                                                        border: 1px solid
+                                                            var(--border-color);
+                                                    "
+                                                ></span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div
+                                        class="card toggle-body"
+                                        style="
+                                            background: rgba(
+                                                255,
+                                                255,
+                                                255,
+                                                0.02
+                                            );
+                                            margin-bottom: 0px;
+                                            border: 1px solid
+                                                var(--border-color);
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                            padding: 16px;
+                                            border-radius: 10px;
+                                            gap: 16px;
+                                        "
+                                    >
+                                        <div class="toggle-info">
+                                            <h3
+                                                style="
+                                                    font-size: 1rem;
+                                                    font-weight: 600;
+                                                    margin-bottom: 4px;
+                                                "
+                                            >
+                                                Beralih ke Keyword Static
+                                            </h3>
+                                            <p
+                                                style="
+                                                    font-size: 0.8rem;
+                                                    color: var(
+                                                        --color-text-secondary
+                                                    );
+                                                "
+                                            >
+                                                Prioritaskan membalas dengan
+                                                aturan keyword rules.json
+                                                sebelum memanggil AI.
+                                            </p>
+                                        </div>
+                                        <div class="switch-container">
+                                            <span
+                                                class="switch-label-status"
+                                                id="ai-fallback-status-text"
+                                                style="
+                                                    font-size: 0.85rem;
+                                                    font-weight: 700;
+                                                    color: var(
+                                                        --color-text-secondary
+                                                    );
+                                                    margin-right: 8px;
+                                                "
+                                                >ON</span
+                                            >
+                                            <label
+                                                class="switch-control"
+                                                style="
+                                                    position: relative;
+                                                    display: inline-block;
+                                                    width: 44px;
+                                                    height: 24px;
+                                                "
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    id="ai-fallback-checkbox"
+                                                    checked
+                                                    aria-label="Aktifkan Fallback ke Keyword Static"
+                                                    style="
+                                                        opacity: 0;
+                                                        width: 0;
+                                                        height: 0;
+                                                    "
+                                                />
+                                                <span
+                                                    class="switch-slider"
+                                                    style="
+                                                        position: absolute;
+                                                        cursor: pointer;
+                                                        top: 0;
+                                                        left: 0;
+                                                        right: 0;
+                                                        bottom: 0;
+                                                        background-color: rgba(
+                                                            255,
+                                                            255,
+                                                            255,
+                                                            0.1
+                                                        );
+                                                        transition: 0.3s;
+                                                        border-radius: 24px;
+                                                        border: 1px solid
+                                                            var(--border-color);
+                                                    "
+                                                ></span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ai-default-provider"
+                                            >Default AI Provider</label
+                                        >
+                                        <select
+                                            id="ai-default-provider"
+                                            class="group-select-dropdown"
+                                        >
+                                            <option value="gemini">
+                                                Google Gemini (Recommended)
+                                            </option>
+                                            <option value="openai">
+                                                OpenAI ChatGPT
+                                            </option>
+                                            <option value="claude">
+                                                Anthropic Claude
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ai-system-prompt"
+                                            >Custom AI System Prompt (Instruksi
+                                            Perilaku Bot)</label
+                                        >
+                                        <textarea
+                                            id="ai-system-prompt"
+                                            rows="4"
+                                            placeholder="Ketik instruksi perilaku AI di sini..."
+                                            required
+                                        ></textarea>
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        class="submit-btn"
+                                        id="ai-settings-submit-btn"
+                                    >
+                                        <span>Simpan Pengaturan AI</span>
+                                        <i class="fa-solid fa-save"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- RIGHT COLUMN: PROVIDER KEY ROTATION -->
+                        <div class="card form-card">
+                            <div class="card-header">
+                                <h2>
+                                    <i class="fa-solid fa-key icon"></i> Rotasi
+                                    API Keys
+                                </h2>
+                            </div>
+                            <div class="card-body">
+                                <div
+                                    class="form-group"
+                                    style="margin-bottom: 16px"
+                                >
+                                    <label for="ai-key-provider-select"
+                                        >Pilih Provider untuk Ditambahkan
+                                        Key</label
+                                    >
+                                    <select
+                                        id="ai-key-provider-select"
+                                        class="group-select-dropdown"
+                                    >
+                                        <option value="gemini">
+                                            Google Gemini
+                                        </option>
+                                        <option value="openai">OpenAI</option>
+                                        <option value="claude">
+                                            Anthropic Claude
+                                        </option>
+                                    </select>
+                                </div>
+                                <form
+                                    id="add-ai-key-form"
+                                    class="dashboard-form"
+                                    style="gap: 12px; margin-bottom: 24px"
+                                >
+                                    <div class="form-group">
+                                        <label for="new-ai-key"
+                                            >API Key Baru</label
+                                        >
+                                        <div class="input-wrapper">
+                                            <i
+                                                class="fa-solid fa-lock input-icon"
+                                            ></i>
+                                            <input
+                                                type="password"
+                                                id="new-ai-key"
+                                                placeholder="Masukkan API Key Anda..."
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        class="submit-btn"
+                                        id="add-key-submit-btn"
+                                        style="
+                                            padding: 10px 16px;
+                                            font-size: 0.88rem;
+                                        "
+                                    >
+                                        <span>Tambah API Key</span>
+                                        <i class="fa-solid fa-plus"></i>
+                                    </button>
+                                </form>
+
+                                <h3
+                                    style="
+                                        font-size: 0.95rem;
+                                        font-weight: 600;
+                                        margin-bottom: 12px;
+                                        border-bottom: 1px solid
+                                            var(--border-color);
+                                        padding-bottom: 8px;
+                                    "
+                                >
+                                    Daftar API Key Aktif:
+                                </h3>
+                                <div
+                                    id="provider-keys-display"
+                                    style="
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: 16px;
+                                    "
+                                >
+                                    <!-- API Keys will be dynamically rendered here per provider -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- FOOTER -->
+            <footer class="app-footer">
+                <p>
+                    &copy; 2026 WWebJS Dashboard Control Panel. Running locally
+                    on Node.js.
+                </p>
+            </footer>
+        </div>
+
+        <!-- PROJECT DETAILS MODAL -->
+        <div id="project-details-modal" class="modal-overlay hidden">
+            <div
+                class="modal-content glass-card"
+                style="
+                    background: #0f172a;
+                    border: 1px solid var(--border-color);
+                    box-shadow: var(--shadow-premium);
+                    width: 90%;
+                    max-width: 700px;
+                    border-radius: 16px;
+                    overflow: hidden;
+                    display: flex;
+                    flex-direction: column;
+                    max-height: 85vh;
+                "
+            >
+                <div class="modal-header">
+                    <h3 id="modal-project-title">Detail Projek Siaran</h3>
+                    <button
+                        class="modal-close-btn"
+                        id="close-project-modal-btn"
+                        aria-label="Tutup Modal"
+                    >
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-tabs">
+                    <button
+                        class="modal-tab-btn active"
+                        data-modal-tab="modal-tab-info"
+                    >
+                        Detail & Penerima
+                    </button>
+                    <button
+                        class="modal-tab-btn"
+                        data-modal-tab="modal-tab-edit"
+                    >
+                        Edit Projek (CRUD)
+                    </button>
+                    <button class="modal-tab-btn" data-modal-tab="modal-tab-ai">
+                        Integrasi AI Auto-Reply
+                    </button>
+                </div>
+                <div class="modal-body-content">
+                    <!-- Tab 1: Info & Penerima -->
+                    <div id="modal-tab-info" class="modal-tab-pane">
+                        <div class="info-group">
+                            <label>Pesan Template:</label>
+                            <pre
+                                class="message-preview"
+                                id="modal-message-preview"
+                            ></pre>
+                        </div>
+                        <div class="info-group">
+                            <label>Daftar Penerima & Status:</label>
+                            <div class="modal-table-wrapper">
+                                <table class="modal-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nama</th>
+                                            <th>Nomor HP</th>
+                                            <th>Status</th>
+                                            <th>Detail Waktu / Error</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="modal-recipients-body">
+                                        <!-- Dynamic rows -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 2: Edit Projek -->
+                    <div id="modal-tab-edit" class="modal-tab-pane hidden">
+                        <form id="edit-project-form" class="dashboard-form">
+                            <div class="form-group">
+                                <label for="edit-campaign-name"
+                                    >Nama Projek</label
+                                >
+                                <input
+                                    type="text"
+                                    id="edit-campaign-name"
+                                    required
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-campaign-message"
+                                    >Pesan Template</label
+                                >
+                                <textarea
+                                    id="edit-campaign-message"
+                                    rows="4"
+                                    required
+                                ></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-campaign-recipients"
+                                    >Nomor Penerima (Format: Nama,Nomor HP -
+                                    Satu per baris)</label
+                                >
+                                <textarea
+                                    id="edit-campaign-recipients"
+                                    rows="5"
+                                    placeholder="Budi,628123456789&#10;Siti,62811223344"
+                                    required
+                                ></textarea>
+                                <span class="input-hint"
+                                    >Catatan: Nomor yang sudah sukses terkirim
+                                    tidak akan terpengaruh. Nomor baru akan
+                                    berstatus PENDING.</span
+                                >
+                            </div>
+                            <button
+                                type="submit"
+                                class="submit-btn"
+                                id="edit-project-submit-btn"
+                            >
+                                <span>Simpan Perubahan Projek</span>
+                                <i class="fa-solid fa-save"></i>
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Tab 3: Integrasi AI -->
+                    <div id="modal-tab-ai" class="modal-tab-pane hidden">
+                        <form id="project-ai-form" class="dashboard-form">
+                            <div
+                                class="card toggle-body"
+                                style="
+                                    background: rgba(255, 255, 255, 0.02);
+                                    border: 1px solid var(--border-color);
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: space-between;
+                                    padding: 16px;
+                                    border-radius: 10px;
+                                    margin-bottom: 16px;
+                                    gap: 16px;
+                                "
+                            >
+                                <div class="toggle-info">
+                                    <h3
+                                        style="
+                                            font-size: 0.95rem;
+                                            font-weight: 600;
+                                            margin-bottom: 2px;
+                                        "
+                                    >
+                                        Aktifkan AI Auto-Reply Projek
+                                    </h3>
+                                    <p
+                                        style="
+                                            font-size: 0.75rem;
+                                            color: var(--color-text-secondary);
+                                        "
+                                    >
+                                        Balas pesan masuk dari penerima projek
+                                        ini menggunakan AI.
+                                    </p>
+                                </div>
+                                <div class="switch-container">
+                                    <span
+                                        class="switch-label-status"
+                                        id="project-ai-status-text"
+                                        style="
+                                            font-size: 0.85rem;
+                                            font-weight: 700;
+                                            color: var(--color-text-secondary);
+                                            margin-right: 8px;
+                                        "
+                                        >OFF</span
+                                    >
+                                    <label
+                                        class="switch-control"
+                                        style="
+                                            position: relative;
+                                            display: inline-block;
+                                            width: 44px;
+                                            height: 24px;
+                                        "
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            id="project-ai-checkbox"
+                                            aria-label="Aktifkan AI khusus projek"
+                                            style="
+                                                opacity: 0;
+                                                width: 0;
+                                                height: 0;
+                                            "
+                                        />
+                                        <span
+                                            class="switch-slider"
+                                            style="
+                                                position: absolute;
+                                                cursor: pointer;
+                                                top: 0;
+                                                left: 0;
+                                                right: 0;
+                                                bottom: 0;
+                                                background-color: rgba(
+                                                    255,
+                                                    255,
+                                                    255,
+                                                    0.1
+                                                );
+                                                transition: 0.3s;
+                                                border-radius: 24px;
+                                                border: 1px solid
+                                                    var(--border-color);
+                                            "
+                                        ></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="project-ai-provider"
+                                    >AI Provider</label
+                                >
+                                <select
+                                    id="project-ai-provider"
+                                    class="group-select-dropdown"
+                                >
+                                    <option value="gemini">
+                                        Google Gemini (Recommended)
+                                    </option>
+                                    <option value="openai">
+                                        OpenAI ChatGPT
+                                    </option>
+                                    <option value="claude">
+                                        Anthropic Claude
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="project-ai-prompt"
+                                    >Custom AI System Prompt Projek</label
+                                >
+                                <textarea
+                                    id="project-ai-prompt"
+                                    rows="4"
+                                    placeholder="Contoh: Anda adalah customer service untuk produk hijab kami..."
+                                    required
+                                ></textarea>
+                            </div>
+                            <button
+                                type="submit"
+                                class="submit-btn"
+                                id="project-ai-submit-btn"
+                            >
+                                <span>Simpan Integrasi AI Projek</span>
+                                <i class="fa-solid fa-save"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Script -->
+        <script src="script.js"></script>
+    </body>
+</html>

@@ -83,3 +83,4 @@ typings/
 ai_config.json
 campaigns.json
 rules.json
+status_schedule.json

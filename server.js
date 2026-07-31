@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const { Client, LocalAuth, MessageMedia } = require('./index');
 const fs = require('fs');
 const path = require('path');
+const statusScheduler = require('./services/statusScheduler');
 
 const app = express();
 const server = http.createServer(app);
@@ -192,6 +193,7 @@ client.on('ready', () => {
     qrCodeData = null;
     setBotStatus('READY');
     logToFrontend('READY', 'WhatsApp Client SIAP digunakan dan terhubung!');
+    statusScheduler.initStatusScheduler(client, logToFrontend);
 });
 
 client.on('disconnected', (reason) => {
@@ -1769,6 +1771,134 @@ app.post('/api/ai/config', (req, res) => {
         }`,
     );
     res.json({ success: true, config: aiConfig });
+});
+
+// ==========================================
+// STATUS SCHEDULER API ENDPOINTS
+// ==========================================
+// Get all status schedules
+app.get('/api/statuses/schedule', (req, res) => {
+    try {
+        const schedules = statusScheduler.getSchedules();
+        res.json({ success: true, schedules });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Create a new scheduled status
+app.post('/api/statuses/schedule', (req, res) => {
+    try {
+        const { name, cronExpression, type, content, mediaPath, enabled } =
+            req.body;
+        if (!name || !cronExpression || !type) {
+            return res.status(400).json({
+                success: false,
+                error: 'Name, cronExpression, dan type wajib diisi.',
+            });
+        }
+
+        const newSchedule = {
+            id: Date.now().toString(),
+            name,
+            cronExpression,
+            type, // 'text', 'image', 'video', etc.
+            content: content || '',
+            mediaPath: mediaPath || '',
+            enabled: enabled !== false,
+        };
+
+        statusScheduler.addSchedule(newSchedule);
+        logToFrontend(
+            'SYSTEM',
+            `Jadwal status baru "${name}" berhasil ditambahkan.`,
+        );
+        res.json({ success: true, schedule: newSchedule });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Update a scheduled status
+app.put('/api/statuses/schedule/:id', (req, res) => {
+    try {
+        const { name, cronExpression, type, content, mediaPath, enabled } =
+            req.body;
+        const id = req.params.id;
+
+        const schedules = statusScheduler.getSchedules();
+        const existing = schedules.find((s) => s.id === id);
+        if (!existing) {
+            return res.status(404).json({
+                success: false,
+                error: 'Jadwal status tidak ditemukan.',
+            });
+        }
+
+        const updatedSchedule = {
+            id,
+            name: name || existing.name,
+            cronExpression: cronExpression || existing.cronExpression,
+            type: type || existing.type,
+            content: content !== undefined ? content : existing.content,
+            mediaPath: mediaPath !== undefined ? mediaPath : existing.mediaPath,
+            enabled: enabled !== undefined ? enabled : existing.enabled,
+        };
+
+        statusScheduler.updateSchedule(updatedSchedule);
+        logToFrontend(
+            'SYSTEM',
+            `Jadwal status "${updatedSchedule.name}" berhasil diperbarui.`,
+        );
+        res.json({ success: true, schedule: updatedSchedule });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Delete a scheduled status
+app.delete('/api/statuses/schedule/:id', (req, res) => {
+    try {
+        const id = req.params.id;
+        const schedules = statusScheduler.getSchedules();
+        const existing = schedules.find((s) => s.id === id);
+        if (!existing) {
+            return res.status(404).json({
+                success: false,
+                error: 'Jadwal status tidak ditemukan.',
+            });
+        }
+
+        statusScheduler.deleteSchedule(id);
+        logToFrontend(
+            'SYSTEM',
+            `Jadwal status "${existing.name}" telah dihapus.`,
+        );
+        res.json({ success: true, message: 'Jadwal status berhasil dihapus.' });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Post/trigger a scheduled status immediately
+app.post('/api/statuses/schedule/:id/trigger', async (req, res) => {
+    try {
+        const id = req.params.id;
+        if (botStatus !== 'READY') {
+            return res.status(400).json({
+                success: false,
+                error: 'WhatsApp client belum siap/terhubung.',
+            });
+        }
+
+        await statusScheduler.triggerStatusNow(id);
+        res.json({
+            success: true,
+            message: 'Status berhasil dipicu dan dikirim.',
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 // Jalankan HTTP Server

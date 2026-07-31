@@ -1,158 +1,108 @@
-<div align="center">
-    <p>
-        <a href="https://wwebjs.dev">
-            <img src="https://github.com/wwebjs/Assets/blob/main/Collection/GitHub/whatsapp-web.js.png?raw=true"
-                title="whatsapp-web.js" alt="WWebJS Website" />
-        </a>
-    </p>
-    <p>
-        <a href="https://www.npmjs.com/package/whatsapp-web.js"><img
-                src="https://img.shields.io/npm/v/whatsapp-web.js.svg" alt="npm" /></a>
-        <a href="https://www.npmjs.com/package/whatsapp-web.js"><img alt="NPM Downloads"
-                src="https://img.shields.io/npm/d18m/whatsapp-web.js" /></a>
-        <a href="https://github.com/wwebjs/whatsapp-web.js/graphs/contributors"><img alt="GitHub contributors"
-                src="https://img.shields.io/github/contributors-anon/wwebjs/whatsapp-web.js" /></a>
-        <a href="https://depfu.com/github/wwebjs/whatsapp-web.js?project_id=9765"><img
-                src="https://badges.depfu.com/badges/4a65a0de96ece65fdf39e294e0c8dcba/overview.svg" alt="Depfu" /></a>
-        <a href="https://discord.wwebjs.dev"><img
-                src="https://img.shields.io/discord/698610475432411196.svg?logo=discord" alt="Discord server" /></a>
-    </p>
-</div>
+# WhatsApp Bot Manager & Status Scheduler 🚀
 
-## About
+Aplikasi WhatsApp Bot cerdas berbasis **whatsapp-web.js** yang dilengkapi dengan **Dashboard Control Panel Web** interaktif, **Auto-Reply AI**, **Campaign Manager (Broadcast)**, dan **Status Scheduler otomatis (Anti-Bentrok)**.
 
-whatsapp‑web.js is a powerful [Node.js][nodejs] library that lets you interact with WhatsApp Web, making it easy to build a dynamic WhatsApp API with nearly all features of the web client. It uses [Puppeteer][puppeteer] to access WhatsApp Web’s internal functions and runs them in a managed browser instance to reduce the risk of being blocked.
+---
 
-## Links
+## ✨ Fitur Utama
 
-- [GitHub][gitHub]
-- [Guide][guide] ([source][guide-source])
-- [Documentation][documentation] ([source][documentation-source])
-- [Discord Server][discord]
-- [npm][npm]
+1. **Dashboard Control Panel:**
+   * Tampilan Web UI premium dengan tema gelap (Glassmorphism).
+   * Scan QR Code secara real-time langsung dari dashboard.
+   * Live console log aktivitas bot.
+2. **Live Chats:**
+   * Baca dan balas obrolan pelanggan secara real-time langsung dari dashboard panel.
+3. **Auto-Reply & AI Assistant:**
+   * Auto-reply berdasarkan aturan kata kunci (keyword rules).
+   * Asisten AI pintar menggunakan **Google Gemini, OpenAI GPT, atau Claude** yang merotasi API Key secara otomatis jika limit tercapai.
+   * Jeda pengetikan alami manusia (*read delay* dan *typing delay* dinamis sesuai panjang pesan).
+4. **Campaign Manager (Broadcast Massal):**
+   * Pengiriman pesan massal terjadwal dengan personalisasi variabel `{name}` dan `{phone}`.
+   * Mendukung format **Spintax** (contoh: `{Halo|Hai|Selamat pagi}`) agar isi pesan bervariasi secara acak.
+   * **Jeda Aman Acak** (30-60 detik) dan **Batch Cooldown** setiap 10 pesan (60-120 detik) untuk melindungi nomor Anda dari pemblokiran (anti-ban).
+5. **Status Scheduler (Penjadwal Status Otomatis & Anti-Bentrok):**
+   * Penjadwalan posting status otomatis (teks, gambar, atau video) berbasis ekspresi Cron standar.
+   * **Sistem Antrean (Queue System):** Mencegah bentrok eksekusi. Jika ada jadwal status yang berjalan bersamaan atau dipicu instan secara manual, sistem akan mengantre status tersebut dan mempostingnya satu per satu dengan **jeda aman 15 detik**.
+   * **Proteksi Bentrok Cron:** Backend menolak pembuatan jadwal aktif baru dengan ekspresi cron yang sama persis untuk mencegah tabrakan eksekusi.
 
-## Installation
+---
 
-**Node.js `v18.0.0` or higher, is required.**
+## 💻 Cara Menjalankan di Desktop (Windows / Mac / Linux)
 
-```sh
-npm install whatsapp-web.js
-yarn add whatsapp-web.js
-pnpm add whatsapp-web.js
-```
+### Persyaratan
+* Node.js versi `v18.0.0` atau yang lebih tinggi.
+* Browser Chrome atau Edge terinstal secara lokal di sistem Anda.
 
-Having trouble installing? Take a peak at the [Guide][guide] for more detailed instructions.
+### Langkah-Langkah
+1. Clone repositori ini:
+   ```bash
+   git clone https://github.com/gandisetiawan28/whatsapp-web.js-bot.git
+   cd whatsapp-web.js-bot
+   ```
+2. Pasang semua dependensi proyek:
+   ```bash
+   npm install
+   ```
+3. Jalankan server:
+   ```bash
+   node server.js
+   ```
+4. Buka browser Anda dan akses alamat:
+   ```text
+   http://localhost:3000
+   ```
+5. Scan QR code yang muncul di halaman utama untuk menautkan akun WhatsApp Anda.
 
-## Example usage
+---
 
-```js
-const { Client } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+## 📱 Cara Menjalankan di Android (Termux)
 
-const client = new Client();
+Aplikasi ini telah dioptimalkan secara otomatis untuk berjalan mulus di lingkungan **Termux Android** tanpa grafis (headless) menggunakan browser bawaan Android.
 
-client.on('qr', (qr) => {
-    qrcode.generate(qr, { small: true });
-});
+### Langkah-Langkah
+1. Instal aplikasi **Termux terbaru** dari **[F-Droid](https://f-droid.org/packages/com.termux/)** *(Jangan gunakan versi Play Store karena sudah usang)*.
+2. Buka Termux, lalu jalankan perintah perbaruan sistem:
+   ```bash
+   pkg update && pkg upgrade -y
+   ```
+3. Pasang repositori X11 & TUR untuk mendapatkan paket Chromium asli Android:
+   ```bash
+   pkg install tur-repo x11-repo -y
+   ```
+4. Pasang Git, Node.js, dan Chromium:
+   ```bash
+   pkg install git nodejs chromium -y
+   ```
+5. Clone repositori proyek Anda:
+   ```bash
+   git clone https://github.com/gandisetiawan28/whatsapp-web.js-bot.git
+   cd whatsapp-web.js-bot
+   ```
+6. Set variabel lingkungan agar Puppeteer menggunakan browser Chromium Android (Termux):
+   ```bash
+   echo 'export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true' >> ~/.bashrc
+   echo 'export PUPPETEER_EXECUTABLE_PATH=$PREFIX/bin/chromium' >> ~/.bashrc
+   source ~/.bashrc
+   ```
+7. Pasang dependensi Node.js:
+   ```bash
+   npm install
+   ```
+8. Jalankan server bot:
+   ```bash
+   node server.js
+   ```
+9. Buka browser HP Anda (Chrome/Firefox/lainnya) dan akses alamat:
+   ```text
+   http://localhost:3000
+   ```
 
-client.on('ready', () => {
-    console.log('Client is ready!');
-});
+---
 
-client.on('message', (msg) => {
-    if (msg.body == '!ping') {
-        msg.reply('pong');
-    }
-});
-
-client.initialize();
-```
-
-Take a look at [example.js][examples] for additional examples and use cases.  
-For more details on saving and restoring sessions, check out the [Authentication Strategies][auth-strategies].
-
-## Supported features
-
-| Feature                                          | Status                                       |
-| ------------------------------------------------ | -------------------------------------------- |
-| Multi Device                                     | ✅                                           |
-| Send messages                                    | ✅                                           |
-| Receive messages                                 | ✅                                           |
-| Send media (images/audio/documents)              | ✅                                           |
-| Send media (video)                               | ✅ [(requires Google Chrome)][google-chrome] |
-| Send stickers                                    | ✅                                           |
-| Receive media (images/audio/video/documents)     | ✅                                           |
-| Send contact cards                               | ✅                                           |
-| Send location                                    | ✅                                           |
-| Send buttons                                     | ❌ [(DEPRECATED)][deprecated-video]          |
-| Send lists                                       | ❌ [(DEPRECATED)][deprecated-video]          |
-| Receive location                                 | ✅                                           |
-| Message replies                                  | ✅                                           |
-| Join groups by invite                            | ✅                                           |
-| Get invite for group                             | ✅                                           |
-| Modify group info (subject, description)         | ✅                                           |
-| Modify group settings (send messages, edit info) | ✅                                           |
-| Add group participants                           | ✅                                           |
-| Kick group participants                          | ✅                                           |
-| Promote/demote group participants                | ✅                                           |
-| Mention users                                    | ✅                                           |
-| Mention groups                                   | ✅                                           |
-| Mute/unmute chats                                | ✅                                           |
-| Block/unblock contacts                           | ✅                                           |
-| Get contact info                                 | ✅                                           |
-| Get profile pictures                             | ✅                                           |
-| Set user status message                          | ✅                                           |
-| React to messages                                | ✅                                           |
-| Create polls                                     | ✅                                           |
-| Channels                                         | ✅                                           |
-| Vote in polls                                    | ✅                                           |
-| Communities                                      | 🔜                                           |
-
-Something missing? Make an issue and let us know!
-
-## Supporting the project
-
-You can support the maintainer of this project through the links below:
-
-- [Support via GitHub Sponsors][gitHub-sponsors]
-- [Support via PayPal][support-payPal]
-
-## Contributing
-
-Feel free to open pull requests; we welcome contributions! However, for significant changes, it's best to open an issue beforehand. Make sure to review our [contribution guidelines][contributing] before creating a pull request. Before creating your own issue or pull request, always check to see if one already exists!
-
-## Disclaimer
-
-This project is not affiliated, associated, authorized, endorsed by, or in any way officially connected with WhatsApp or any of its subsidiaries or its affiliates. The official WhatsApp website can be found at [whatsapp.com][whatsapp]. "WhatsApp" as well as related names, marks, emblems and images are registered trademarks of their respective owners. Also it is not guaranteed you will not be blocked by using this method. WhatsApp does not allow bots or unofficial clients on their platform, so this shouldn't be considered totally safe.
-
-## License
-
-Copyright 2019 Pedro S Lopez
-
-Licensed under the Apache License, Version 2.0 (the "License");  
-you may not use this project except in compliance with the License.  
-You may obtain a copy of the License at <https://www.apache.org/licenses/LICENSE-2.0>.
-
-Unless required by applicable law or agreed to in writing, software  
-distributed under the License is distributed on an "AS IS" BASIS,  
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  
-See the License for the specific language governing permissions and  
-limitations under the License.
-
-[guide]: https://guide.wwebjs.dev/guide
-[guide-source]: https://github.com/wwebjs/wwebjs.dev/tree/main
-[documentation]: https://docs.wwebjs.dev/
-[documentation-source]: https://github.com/wwebjs/whatsapp-web.js/tree/main/docs
-[discord]: https://discord.wwebjs.dev
-[gitHub]: https://github.com/wwebjs/whatsapp-web.js
-[npm]: https://npmjs.org/package/whatsapp-web.js
-[nodejs]: https://nodejs.org/en/download/
-[examples]: https://github.com/wwebjs/whatsapp-web.js/blob/main/example.js
-[auth-strategies]: https://wwebjs.dev/guide/creating-your-bot/authentication.html
-[google-chrome]: https://wwebjs.dev/guide/creating-your-bot/handling-attachments.html#caveat-for-sending-videos-and-gifs
-[deprecated-video]: https://www.youtube.com/watch?v=hv1R1rLeVVE
-[gitHub-sponsors]: https://github.com/sponsors/wwebjs
-[support-payPal]: https://www.paypal.me/psla/
-[contributing]: .github/CONTRIBUTING.md
-[whatsapp]: https://whatsapp.com
-[puppeteer]: https://pptr.dev/
+## 📂 Manajemen Folder & Struktur Berkas
+* `server.js` - Pintu masuk server utama, mengelola API HTTP Express dan WebSocket Socket.io.
+* `services/statusScheduler.js` - Service penanganan cron job penjadwalan status & sistem antrean (Queue).
+* `public/` - File antarmuka frontend (HTML, CSS, JS) dashboard bot.
+* `status_schedule.json` - Database lokal penyimpan data jadwal status (diabaikan oleh git agar aman).
+* `rules.json`, `campaigns.json`, `ai_config.json` - Berkas penyimpanan data auto-reply, kampanye, dan API keys.
+* `.gitignore` - Mengabaikan file database lokal dan berkas kredensial sensitif.

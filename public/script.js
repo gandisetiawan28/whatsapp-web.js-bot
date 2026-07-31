@@ -190,6 +190,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadCampaigns();
             } else if (targetTab === 'ai-tab') {
                 loadAIConfig();
+            } else if (targetTab === 'status-tab') {
+                loadStatusSchedules();
             }
         });
     });
@@ -1741,6 +1743,258 @@ document.addEventListener('DOMContentLoaded', () => {
                 '<span>Simpan Integrasi AI Projek</span> <i class="fa-solid fa-save"></i>';
         }
     });
+
+    // ==========================================
+    // STATUS SCHEDULER FEATURES
+    // ==========================================
+    const statusScheduleForm = document.getElementById('status-schedule-form');
+    const statusIdInput = document.getElementById('status-id');
+    const statusNameInput = document.getElementById('status-name');
+    const statusCronInput = document.getElementById('status-cron');
+    const statusTypeSelect = document.getElementById('status-type');
+    const statusMediaGroup = document.getElementById('status-media-group');
+    const statusMediaPathInput = document.getElementById('status-media-path');
+    const statusContentInput = document.getElementById('status-content');
+    const statusEnabledCheckbox = document.getElementById('status-enabled');
+    const statusSubmitBtn = document.getElementById('status-submit-btn');
+    const statusCancelBtn = document.getElementById('status-cancel-btn');
+    const statusScheduleTableBody = document.getElementById(
+        'status-schedule-table-body',
+    );
+
+    // Toggle media path visibility
+    statusTypeSelect.addEventListener('change', () => {
+        if (statusTypeSelect.value === 'text') {
+            statusMediaGroup.style.display = 'none';
+            statusMediaPathInput.removeAttribute('required');
+        } else {
+            statusMediaGroup.style.display = 'block';
+            statusMediaPathInput.setAttribute('required', 'required');
+        }
+    });
+
+    // Load and render status schedules
+    async function loadStatusSchedules() {
+        try {
+            const response = await fetch('/api/statuses/schedule');
+            const data = await response.json();
+
+            if (data.success) {
+                renderStatusSchedules(data.schedules);
+            } else {
+                console.error('Gagal mengambil jadwal status:', data.error);
+            }
+        } catch (error) {
+            console.error('Error fetching schedules:', error);
+        }
+    }
+
+    function renderStatusSchedules(schedules) {
+        statusScheduleTableBody.innerHTML = '';
+
+        if (schedules.length === 0) {
+            statusScheduleTableBody.innerHTML = `
+                <tr>
+                    <td colspan="5" style="text-align: center; padding: 20px; color: var(--color-text-muted);">
+                        Belum ada jadwal status otomatis yang dibuat.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        schedules.forEach((schedule) => {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid var(--border-color)';
+
+            const badgeClass = schedule.enabled ? 'success' : 'muted';
+            const badgeText = schedule.enabled ? 'AKTIF' : 'NON-AKTIF';
+
+            const truncatedContent = schedule.content
+                ? schedule.content.length > 30
+                    ? schedule.content.substring(0, 30) + '...'
+                    : schedule.content
+                : '<span style="color: var(--color-text-muted)">Tanpa caption</span>';
+
+            tr.innerHTML = `
+                <td style="padding: 12px 8px;">
+                    <div style="font-weight: 600;">${schedule.name}</div>
+                    <div style="font-size: 0.75rem; color: var(--color-text-secondary); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${truncatedContent}
+                    </div>
+                </td>
+                <td style="padding: 12px 8px;"><code style="color: var(--color-wa-green); background: rgba(37, 211, 102, 0.05); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace;">${schedule.cronExpression}</code></td>
+                <td style="padding: 12px 8px;">
+                    <span style="font-size: 0.8rem; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); padding: 2px 8px; border-radius: 50px;">
+                        ${schedule.type.toUpperCase()}
+                    </span>
+                </td>
+                <td style="padding: 12px 8px;">
+                    <span class="status-badge ${badgeClass}" style="font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 4px;">
+                        ${badgeText}
+                    </span>
+                </td>
+                <td style="padding: 12px 8px; text-align: right; white-space: nowrap;">
+                    <button class="action-btn trigger-status-btn" data-id="${schedule.id}" title="Kirim Sekarang (Instan)" style="background: rgba(37, 211, 102, 0.1); color: var(--color-wa-green); border: 1px solid rgba(37, 211, 102, 0.2); padding: 4px 8px; border-radius: 4px; margin-right: 4px; cursor: pointer;">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                    <button class="action-btn edit-status-btn" data-id="${schedule.id}" title="Edit" style="background: rgba(255, 255, 255, 0.05); color: var(--color-text-primary); border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 4px; margin-right: 4px; cursor: pointer;">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                    <button class="action-btn delete-status-btn" data-id="${schedule.id}" title="Hapus" style="background: rgba(239, 68, 68, 0.1); color: var(--color-error); border: 1px solid rgba(239, 68, 68, 0.2); padding: 4px 8px; border-radius: 4px; cursor: pointer;">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            `;
+
+            // Event Listeners for actions
+            tr.querySelector('.trigger-status-btn').addEventListener(
+                'click',
+                () => triggerStatusInstantly(schedule.id),
+            );
+            tr.querySelector('.edit-status-btn').addEventListener('click', () =>
+                editStatusSchedule(schedule),
+            );
+            tr.querySelector('.delete-status-btn').addEventListener(
+                'click',
+                () => deleteStatusSchedule(schedule.id),
+            );
+
+            statusScheduleTableBody.appendChild(tr);
+        });
+    }
+
+    // Submit form (Create / Update)
+    statusScheduleForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const id = statusIdInput.value;
+        const name = statusNameInput.value.trim();
+        const cronExpression = statusCronInput.value.trim();
+        const type = statusTypeSelect.value;
+        const mediaPath = statusMediaPathInput.value.trim();
+        const content = statusContentInput.value.trim();
+        const enabled = statusEnabledCheckbox.checked;
+
+        const isEdit = !!id;
+        const url = isEdit
+            ? `/api/statuses/schedule/${id}`
+            : '/api/statuses/schedule';
+        const method = isEdit ? 'PUT' : 'POST';
+
+        statusSubmitBtn.disabled = true;
+        statusSubmitBtn.innerHTML =
+            '<span>Menyimpan...</span> <i class="fa-solid fa-spinner fa-spin"></i>';
+
+        try {
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    cronExpression,
+                    type,
+                    mediaPath,
+                    content,
+                    enabled,
+                }),
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                alert(
+                    isEdit
+                        ? 'Jadwal status berhasil diperbarui!'
+                        : 'Jadwal status baru berhasil dibuat!',
+                );
+                resetStatusForm();
+                loadStatusSchedules();
+            } else {
+                alert('Gagal menyimpan jadwal status: ' + data.error);
+            }
+        } catch (error) {
+            alert('Error jaringan: ' + error.message);
+        } finally {
+            statusSubmitBtn.disabled = false;
+            statusSubmitBtn.innerHTML =
+                '<span>Simpan Jadwal</span> <i class="fa-solid fa-save"></i>';
+        }
+    });
+
+    // Populate form for editing
+    function editStatusSchedule(schedule) {
+        statusIdInput.value = schedule.id;
+        statusNameInput.value = schedule.name;
+        statusCronInput.value = schedule.cronExpression;
+        statusTypeSelect.value = schedule.type;
+        statusMediaPathInput.value = schedule.mediaPath || '';
+        statusContentInput.value = schedule.content || '';
+        statusEnabledCheckbox.checked = schedule.enabled;
+
+        // Trigger change to update media source field visibility
+        statusTypeSelect.dispatchEvent(new Event('change'));
+
+        statusSubmitBtn.innerHTML =
+            '<span>Perbarui Jadwal</span> <i class="fa-solid fa-save"></i>';
+        statusCancelBtn.style.display = 'inline-block';
+    }
+
+    // Cancel edit
+    statusCancelBtn.addEventListener('click', resetStatusForm);
+
+    function resetStatusForm() {
+        statusIdInput.value = '';
+        statusScheduleForm.reset();
+        statusTypeSelect.dispatchEvent(new Event('change'));
+        statusSubmitBtn.innerHTML =
+            '<span>Simpan Jadwal</span> <i class="fa-solid fa-save"></i>';
+        statusCancelBtn.style.display = 'none';
+    }
+
+    // Delete schedule
+    async function deleteStatusSchedule(id) {
+        if (!confirm('Apakah Anda yakin ingin menghapus jadwal status ini?'))
+            return;
+
+        try {
+            const response = await fetch(`/api/statuses/schedule/${id}`, {
+                method: 'DELETE',
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                alert('Jadwal status berhasil dihapus!');
+                loadStatusSchedules();
+            } else {
+                alert('Gagal menghapus: ' + data.error);
+            }
+        } catch (error) {
+            alert('Error jaringan: ' + error.message);
+        }
+    }
+
+    // Trigger instantly (test posting)
+    async function triggerStatusInstantly(id) {
+        try {
+            const response = await fetch(
+                `/api/statuses/schedule/${id}/trigger`,
+                {
+                    method: 'POST',
+                },
+            );
+            const data = await response.json();
+
+            if (data.success) {
+                alert(
+                    'Status berhasil dikirim ke antrean posting instan! (Periksa konsol aktivitas untuk log lengkap)',
+                );
+            } else {
+                alert('Gagal memicu status: ' + data.error);
+            }
+        } catch (error) {
+            alert('Error jaringan: ' + error.message);
+        }
+    }
 
     refreshGroupsBtn.addEventListener('click', loadGroupsDropdown);
     updateCampaignBadge();

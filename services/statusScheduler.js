@@ -132,6 +132,58 @@ async function postStatus(schedule) {
     }
 }
 
+let statusQueue = [];
+let isProcessingQueue = false;
+
+// Antrean Status (Anti-Bentrok)
+function queueStatus(schedule) {
+    if (statusQueue.some((s) => s.id === schedule.id)) {
+        logMessage(
+            'SYSTEM',
+            `[Scheduler] Status "${schedule.name}" sudah ada dalam antrean. Menghindari bentrok.`,
+        );
+        return;
+    }
+
+    statusQueue.push(schedule);
+    logMessage(
+        'SYSTEM',
+        `[Scheduler] Status "${schedule.name}" masuk antrean (Posisi: ${statusQueue.length}).`,
+    );
+
+    processQueue().catch((err) => {
+        console.error('Gagal memproses antrean status:', err);
+    });
+}
+
+async function processQueue() {
+    if (isProcessingQueue) return;
+    isProcessingQueue = true;
+
+    while (statusQueue.length > 0) {
+        const nextSchedule = statusQueue[0];
+
+        try {
+            await postStatus(nextSchedule);
+        } catch (err) {
+            console.error('Error saat memproses antrean status:', err);
+        }
+
+        statusQueue.shift();
+
+        // Jeda aman 15 detik jika masih ada status lain dalam antrean untuk menghindari bentrok / blokir
+        if (statusQueue.length > 0) {
+            logMessage(
+                'SYSTEM',
+                `[Scheduler] Jeda aman 15 detik sebelum memproses status berikutnya dalam antrean...`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, 15000));
+        }
+    }
+
+    isProcessingQueue = false;
+}
+
 // Stop a cron job
 function stopJob(id) {
     if (activeJobs.has(id)) {
@@ -155,9 +207,7 @@ function startJob(schedule) {
     }
 
     const job = cron.schedule(schedule.cronExpression, () => {
-        postStatus(schedule).catch((err) => {
-            console.error('Terjadi kesalahan saat memposting status:', err);
-        });
+        queueStatus(schedule);
     });
 
     activeJobs.set(schedule.id, job);
@@ -198,6 +248,20 @@ module.exports = {
     saveSchedules,
     addSchedule: (schedule) => {
         const schedules = getSchedules();
+
+        // Verifikasi anti-bentrok: cek apakah ada ekspresi cron yang sama pada jadwal aktif lain
+        if (
+            schedule.enabled &&
+            schedules.some(
+                (s) =>
+                    s.enabled && s.cronExpression === schedule.cronExpression,
+            )
+        ) {
+            throw new Error(
+                `Jadwal Bentrok! Ekspresi cron "${schedule.cronExpression}" sudah digunakan oleh jadwal aktif lain.`,
+            );
+        }
+
         schedules.push(schedule);
         saveSchedules(schedules);
         if (schedule.enabled) {
@@ -206,6 +270,22 @@ module.exports = {
     },
     updateSchedule: (updatedSchedule) => {
         let schedules = getSchedules();
+
+        // Verifikasi anti-bentrok: cek apakah ada ekspresi cron yang sama pada jadwal aktif lain (selain diri sendiri)
+        if (
+            updatedSchedule.enabled &&
+            schedules.some(
+                (s) =>
+                    s.id !== updatedSchedule.id &&
+                    s.enabled &&
+                    s.cronExpression === updatedSchedule.cronExpression,
+            )
+        ) {
+            throw new Error(
+                `Jadwal Bentrok! Ekspresi cron "${updatedSchedule.cronExpression}" sudah digunakan oleh jadwal aktif lain.`,
+            );
+        }
+
         schedules = schedules.map((s) =>
             s.id === updatedSchedule.id ? updatedSchedule : s,
         );
@@ -230,6 +310,7 @@ module.exports = {
         if (!schedule) {
             throw new Error(`Jadwal status dengan ID "${id}" tidak ditemukan.`);
         }
-        await postStatus(schedule);
+        // Masukkan ke antrean instan agar tidak bentrok dengan jadwal background
+        queueStatus(schedule);
     },
 };

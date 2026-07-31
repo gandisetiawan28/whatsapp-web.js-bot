@@ -16,8 +16,28 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const RULES_FILE = path.join(__dirname, 'rules.json');
 
-// Helper to find local Chrome/Edge
+// Helper to find local Chrome/Edge/Chromium (Termux, Linux, Windows support)
 function getLocalBrowserPath() {
+    // Deteksi Termux (Android)
+    if (process.env.PREFIX && process.env.PREFIX.includes('com.termux')) {
+        const termuxChrome = `${process.env.PREFIX}/bin/chromium`;
+        if (fs.existsSync(termuxChrome)) return termuxChrome;
+    }
+
+    // Deteksi Linux Desktop
+    if (process.platform === 'linux') {
+        const linuxPaths = [
+            '/usr/bin/chromium-browser',
+            '/usr/bin/chromium',
+            '/usr/bin/google-chrome',
+            '/usr/bin/google-chrome-stable',
+        ];
+        for (const p of linuxPaths) {
+            if (fs.existsSync(p)) return p;
+        }
+    }
+
+    // Windows
     const paths = [
         'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
         'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
@@ -158,11 +178,17 @@ function setBotStatus(status) {
 }
 
 // Initialize Client
+const isTermux =
+    process.env.PREFIX && process.env.PREFIX.includes('com.termux');
+
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
-        headless: false,
+        headless: isTermux ? 'new' : false, // Di Termux wajib headless karena tidak ada GUI (X11)
         executablePath: getLocalBrowserPath(),
+        args: isTermux
+            ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
+            : [],
     },
 });
 

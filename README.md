@@ -94,3 +94,26 @@ Aplikasi ini telah dioptimalkan secara otomatis untuk berjalan mulus di lingkung
 - `status_schedule.json` - Database lokal penyimpan data jadwal status (diabaikan oleh git agar aman).
 - `rules.json`, `campaigns.json`, `ai_config.json` - Berkas penyimpanan data auto-reply, kampanye, dan API keys.
 - `.gitignore` - Mengabaikan file database lokal dan berkas kredensial sensitif.
+
+---
+
+## 🛠️ Troubleshooting (Penyelesaian Masalah)
+
+### ❌ Error: `cannot download a binary for the provided platform arm64`
+
+Error ini terjadi di Termux karena Puppeteer secara default mencoba mengunduh browser Chromium versi desktop (x86/x64) yang tidak kompatibel dengan arsitektur processor HP (ARM64).
+
+**Cara Mengatasi:**
+
+1. **Pastikan Chromium lokal Termux sudah terpasang:**
+    ```bash
+    pkg install chromium -y
+    ```
+2. **Muat ulang konfigurasi file `.bashrc` agar variabel terbaca:**
+    ```bash
+    source ~/.bashrc
+    ```
+3. **Atau jalankan bot secara paksa dengan menyertakan variabel secara langsung:**
+    ```bash
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true PUPPETEER_EXECUTABLE_PATH=$PREFIX/bin/chromium node server.js
+    ```

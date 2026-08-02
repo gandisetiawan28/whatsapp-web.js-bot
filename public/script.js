@@ -94,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const campaignName = document.getElementById('campaign-name');
     const campaignMessage = document.getElementById('campaign-message');
     const campaignRecipients = document.getElementById('campaign-recipients');
+    const campaignSendMode = document.getElementById('campaign-send-mode');
     const refreshCampaignsBtn = document.getElementById(
         'refresh-campaigns-btn',
     );
@@ -142,6 +143,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const editCampaignRecipients = document.getElementById(
         'edit-campaign-recipients',
     );
+    const editCampaignSendMode = document.getElementById(
+        'edit-campaign-send-mode',
+    );
     const projectAiForm = document.getElementById('project-ai-form');
     const projectAiStatusText = document.getElementById(
         'project-ai-status-text',
@@ -158,6 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeChatId = null;
     let botStatus = 'DISCONNECTED';
     let autoReplyRules = [];
+    let globalSendMode = 'wwebjs';
 
     // ==========================================
     // 1. NAVIGATION & TAB SWITCHING
@@ -193,12 +198,37 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (targetTab === 'status-tab') {
                 loadStatusSchedules();
             }
+
+            // Mirror control trigger
+            if (targetTab === 'android-tab') {
+                socket.emit('start-adb-mirror');
+            } else {
+                socket.emit('stop-adb-mirror');
+            }
         });
     });
 
     // ==========================================
     // 2. CONNECTION STATUS & SOCKETS
     // ==========================================
+    socket.on('global-mode-update', (mode) => {
+        globalSendMode = mode;
+        updateGlobalModeUI(mode);
+        loadCampaigns(); // Refresh the campaign table to update badges dynamically
+        if (botStatus === 'READY') {
+            enableAllForms(true);
+        } else {
+            enableAllForms(mode === 'adb');
+        }
+    });
+
+    socket.on('adb-screen', (base64Image) => {
+        const adbScreenView = document.getElementById('adb-screen-view');
+        if (adbScreenView) {
+            adbScreenView.src = 'data:image/png;base64,' + base64Image;
+        }
+    });
+
     socket.on('status-update', (data) => {
         const { status, qrCode } = data;
         botStatus = status;
@@ -271,15 +301,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function enableAllForms(enable) {
-        const state = !enable;
+        const isAdb = globalSendMode === 'adb';
+        const actualEnable = enable || isAdb;
+        const state = !actualEnable;
+
         singleSubmitBtn.disabled = state;
         mediaSubmitBtn.disabled = state;
         broadcastSubmitBtn.disabled = state;
-        addRuleSubmit.disabled = state;
-        groupSubmitBtn.disabled = state;
         campaignSubmitBtn.disabled = state;
 
-        if (!enable) {
+        // Rules and groups require active WhatsApp Web connection
+        addRuleSubmit.disabled = !enable;
+        groupSubmitBtn.disabled = !enable;
+
+        if (!actualEnable) {
             chatListContainer.innerHTML =
                 '<p class="list-empty-msg">WhatsApp belum siap. Pastikan status READY.</p>';
             chatWindow.classList.add('hidden');
@@ -1057,11 +1092,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 ).length;
                 const pct = total > 0 ? Math.round((sent / total) * 100) : 0;
 
+                const isAdbForced = globalSendMode === 'adb';
+                const actualSendMode = isAdbForced ? 'adb' : camp.sendMode;
+                const sendModeBadge =
+                    actualSendMode === 'adb'
+                        ? `<span style="font-size: 0.65rem; background: #ea4335; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: 600; margin-left: 8px;">ADB${isAdbForced && camp.sendMode !== 'adb' ? ' (FORCED)' : ''}</span>`
+                        : `<span style="font-size: 0.65rem; background: #075e54; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: 600; margin-left: 8px;">WEB</span>`;
+
                 tr.innerHTML = `
                     <td>
-                        <div style="font-weight: 600; color: #fff;">${escapeHtml(
-                            camp.name,
-                        )}</div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="font-weight: 600; color: #fff;">${escapeHtml(camp.name)}</div>
+                            ${sendModeBadge}
+                        </div>
                         <div style="font-size: 0.72rem; color: var(--color-text-secondary); margin-top: 4px;">Dibuat: ${new Date(
                             camp.createdAt,
                         ).toLocaleString()}</div>
@@ -1133,6 +1176,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const name = campaignName.value.trim();
         const message = campaignMessage.value.trim();
         const rawRecipients = campaignRecipients.value.trim();
+        const sendMode = campaignSendMode.value;
 
         if (!name || !message || !rawRecipients) {
             alert('Harap isi semua input form!');
@@ -1164,7 +1208,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/campaigns', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, message, recipients }),
+                body: JSON.stringify({ name, message, recipients, sendMode }),
             });
             const data = await response.json();
 
@@ -1581,6 +1625,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Tab 2: Edit Form
             editCampaignName.value = camp.name;
             editCampaignMessage.value = camp.message;
+            editCampaignSendMode.value = camp.sendMode || 'wwebjs';
 
             const recipientLines = camp.recipients.map(
                 (r) => `${r.name},${r.phone}`,
@@ -1640,6 +1685,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const name = editCampaignName.value.trim();
         const message = editCampaignMessage.value.trim();
         const rawRecipients = editCampaignRecipients.value.trim();
+        const sendMode = editCampaignSendMode.value;
 
         if (!name || !message || !rawRecipients) {
             alert('Harap isi seluruh input!');
@@ -1674,7 +1720,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, message, recipients }),
+                    body: JSON.stringify({
+                        name,
+                        message,
+                        recipients,
+                        sendMode,
+                    }),
                 },
             );
             const data = await response.json();
@@ -1994,6 +2045,130 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             alert('Error jaringan: ' + error.message);
         }
+    }
+
+    // ==========================================
+    // ADB REMOTE CONTROLLER LOGIC
+    // ==========================================
+    const btnModeWwebjs = document.getElementById('btn-mode-wwebjs');
+    const btnModeAdb = document.getElementById('btn-mode-adb');
+    const adbModeStatus = document.getElementById('adb-mode-status');
+
+    function updateGlobalModeUI(mode) {
+        if (mode === 'adb') {
+            btnModeWwebjs.classList.remove('active');
+            btnModeWwebjs.style.background = 'transparent';
+            btnModeWwebjs.style.color = 'var(--color-text-secondary)';
+
+            btnModeAdb.classList.add('active');
+            btnModeAdb.style.background = 'var(--color-primary)';
+            btnModeAdb.style.color = '#fff';
+
+            if (adbModeStatus) {
+                adbModeStatus.innerText = 'AKTIF (FORCE ANDROID ADB)';
+                adbModeStatus.style.color = '#ea4335';
+            }
+        } else {
+            btnModeAdb.classList.remove('active');
+            btnModeAdb.style.background = 'transparent';
+            btnModeAdb.style.color = 'var(--color-text-secondary)';
+
+            btnModeWwebjs.classList.add('active');
+            btnModeWwebjs.style.background = 'var(--color-primary)';
+            btnModeWwebjs.style.color = '#fff';
+
+            if (adbModeStatus) {
+                adbModeStatus.innerText = 'NONAKTIF (IKUTI PROJEK)';
+                adbModeStatus.style.color = 'var(--color-text-secondary)';
+            }
+        }
+    }
+
+    if (btnModeWwebjs) {
+        btnModeWwebjs.addEventListener('click', () => {
+            socket.emit('set-global-mode', 'wwebjs');
+        });
+    }
+    if (btnModeAdb) {
+        btnModeAdb.addEventListener('click', () => {
+            socket.emit('set-global-mode', 'adb');
+            const btnAndroidTab = document.getElementById('btn-android-tab');
+            if (btnAndroidTab) {
+                btnAndroidTab.click();
+            }
+        });
+    }
+
+    const adbScreenView = document.getElementById('adb-screen-view');
+    const adbInputText = document.getElementById('adb-input-text');
+    const adbBtnSendText = document.getElementById('adb-btn-send-text');
+
+    const adbBtnBack = document.getElementById('adb-btn-back');
+    const adbBtnHome = document.getElementById('adb-btn-home');
+    const adbBtnAppswitch = document.getElementById('adb-btn-appswitch');
+    const adbBtnPower = document.getElementById('adb-btn-power');
+    const adbBtnUnlock = document.getElementById('adb-btn-unlock');
+
+    // Handle clicks on mirror view for Remote Touch
+    if (adbScreenView) {
+        adbScreenView.addEventListener('click', (e) => {
+            const rect = adbScreenView.getBoundingClientRect();
+            // Calculate relative coordinates
+            const clickX = (e.clientX - rect.left) / rect.width;
+            const clickY = (e.clientY - rect.top) / rect.height;
+
+            console.log(
+                `[ADB UI] Tap relative: (${clickX.toFixed(3)}, ${clickY.toFixed(3)})`,
+            );
+            socket.emit('adb-tap', { x: clickX, y: clickY });
+        });
+    }
+
+    // Handle sending text typing
+    if (adbBtnSendText && adbInputText) {
+        const sendTextFn = () => {
+            const text = adbInputText.value;
+            if (text) {
+                socket.emit('adb-text', text);
+                adbInputText.value = '';
+            }
+        };
+        adbBtnSendText.addEventListener('click', sendTextFn);
+        adbInputText.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                sendTextFn();
+            }
+        });
+    }
+
+    // Handle Physical Navigation Keyevents
+    if (adbBtnBack) {
+        adbBtnBack.addEventListener('click', () =>
+            socket.emit('adb-keyevent', 4),
+        );
+    }
+    if (adbBtnHome) {
+        adbBtnHome.addEventListener('click', () =>
+            socket.emit('adb-keyevent', 3),
+        );
+    }
+    if (adbBtnAppswitch) {
+        adbBtnAppswitch.addEventListener('click', () =>
+            socket.emit('adb-keyevent', 187),
+        );
+    }
+    if (adbBtnPower) {
+        adbBtnPower.addEventListener('click', () =>
+            socket.emit('adb-keyevent', 26),
+        );
+    }
+    if (adbBtnUnlock) {
+        adbBtnUnlock.addEventListener('click', () => {
+            socket.emit('adb-keyevent', 224); // KEYCODE_WAKEUP
+            setTimeout(() => {
+                socket.emit('adb-keyevent', 82); // KEYCODE_MENU
+            }, 500);
+        });
     }
 
     refreshGroupsBtn.addEventListener('click', loadGroupsDropdown);

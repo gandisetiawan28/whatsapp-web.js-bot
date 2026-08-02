@@ -32,6 +32,68 @@
                         <p>Dashboard Pengendali Bot WhatsApp</p>
                     </div>
                 </div>
+                <div
+                    class="global-mode-container"
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        margin-right: 16px;
+                        background: rgba(255, 255, 255, 0.04);
+                        padding: 6px 12px;
+                        border-radius: 20px;
+                        border: 1px solid rgba(255, 255, 255, 0.08);
+                    "
+                >
+                    <span
+                        style="
+                            font-size: 0.8rem;
+                            font-weight: 600;
+                            color: var(--color-text-secondary);
+                        "
+                        ><i
+                            class="fa-solid fa-gears"
+                            style="margin-right: 4px"
+                        ></i>
+                        Mode Aktif:</span
+                    >
+                    <div style="display: flex; gap: 4px">
+                        <button
+                            id="btn-mode-wwebjs"
+                            class="mode-toggle-btn active"
+                            style="
+                                font-size: 0.72rem;
+                                padding: 4px 12px;
+                                border-radius: 12px;
+                                border: none;
+                                cursor: pointer;
+                                font-weight: 700;
+                                transition: all 0.2s;
+                                background: var(--color-primary);
+                                color: #fff;
+                            "
+                        >
+                            WhatsApp Web
+                        </button>
+                        <button
+                            id="btn-mode-adb"
+                            class="mode-toggle-btn"
+                            style="
+                                font-size: 0.72rem;
+                                padding: 4px 12px;
+                                border-radius: 12px;
+                                border: none;
+                                cursor: pointer;
+                                font-weight: 700;
+                                transition: all 0.2s;
+                                background: transparent;
+                                color: var(--color-text-secondary);
+                            "
+                        >
+                            Android HP
+                        </button>
+                    </div>
+                </div>
                 <div class="connection-pill disconnected" id="connection-pill">
                     <span class="status-dot pulsing" id="status-dot"></span>
                     <span class="status-text" id="status-text"
@@ -72,6 +134,18 @@
                 </button>
                 <button class="tab-btn" data-tab="status-tab">
                     <i class="fa-solid fa-camera"></i> Status Scheduler
+                </button>
+                <button
+                    class="tab-btn"
+                    data-tab="android-tab"
+                    id="btn-android-tab"
+                    style="border-left: 1px solid rgba(255, 255, 255, 0.15)"
+                >
+                    <i
+                        class="fa-solid fa-mobile-screen-button"
+                        style="color: #ea4335"
+                    ></i>
+                    Mirror HP (ADB)
                 </button>
             </nav>
 
@@ -769,6 +843,32 @@
                                                 placeholder="Contoh: Promo Diskon Kemerdekaan"
                                                 required
                                             />
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="campaign-send-mode"
+                                            >Metode Pengiriman</label
+                                        >
+                                        <div class="input-wrapper">
+                                            <i
+                                                class="fa-solid fa-paper-plane input-icon"
+                                            ></i>
+                                            <select
+                                                id="campaign-send-mode"
+                                                class="group-select-dropdown"
+                                                required
+                                                style="
+                                                    width: 100%;
+                                                    padding-left: 38px;
+                                                "
+                                            >
+                                                <option value="wwebjs">
+                                                    WhatsApp Web (wwebjs)
+                                                </option>
+                                                <option value="adb">
+                                                    Android ADB (uiautomator2)
+                                                </option>
+                                            </select>
                                         </div>
                                     </div>
                                     <div class="form-group">
@@ -1515,6 +1615,451 @@
                         </section>
                     </div>
                 </div>
+                <div id="android-tab" class="tab-pane hidden">
+                    <div
+                        class="dashboard-grid"
+                        style="
+                            display: grid;
+                            grid-template-columns: auto 1fr;
+                            gap: 24px;
+                        "
+                    >
+                        <!-- LEFT COLUMN: PHONE MIRROR SCREEN -->
+                        <section
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                gap: 16px;
+                            "
+                        >
+                            <div
+                                class="card"
+                                style="
+                                    padding: 16px;
+                                    display: flex;
+                                    flex-direction: column;
+                                    align-items: center;
+                                    background: var(--color-bg-card);
+                                "
+                            >
+                                <div
+                                    class="phone-frame"
+                                    style="
+                                        width: 320px;
+                                        height: 640px;
+                                        border: 12px solid #222;
+                                        border-radius: 36px;
+                                        position: relative;
+                                        overflow: hidden;
+                                        background: #000;
+                                        box-shadow: var(--shadow-premium);
+                                        border-color: #334155;
+                                    "
+                                >
+                                    <!-- Camera Notch -->
+                                    <div
+                                        style="
+                                            width: 120px;
+                                            height: 18px;
+                                            background: #334155;
+                                            position: absolute;
+                                            top: 0;
+                                            left: 50%;
+                                            transform: translateX(-50%);
+                                            border-bottom-left-radius: 12px;
+                                            border-bottom-right-radius: 12px;
+                                            z-index: 10;
+                                        "
+                                    ></div>
+                                    <!-- Phone Screen Image -->
+                                    <img
+                                        id="adb-screen-view"
+                                        alt="Layar Android HP"
+                                        title="Layar Android HP"
+                                        src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1080' height='2400' viewBox='0 0 1080 2400'><rect width='100%' height='100%' fill='%230f172a'/><text x='50%' y='50%' font-size='60' fill='%2364748b' text-anchor='middle' dominant-baseline='middle'>Menghubungkan HP...</text></svg>"
+                                        style="
+                                            width: 100%;
+                                            height: 100%;
+                                            object-fit: fill;
+                                            cursor: crosshair;
+                                            user-select: none;
+                                            -webkit-user-drag: none;
+                                        "
+                                        draggable="false"
+                                    />
+                                </div>
+
+                                <!-- Physical Navigation Buttons -->
+                                <div
+                                    style="
+                                        display: flex;
+                                        justify-content: center;
+                                        gap: 32px;
+                                        width: 100%;
+                                        margin-top: 16px;
+                                        padding: 8px;
+                                        background: rgba(255, 255, 255, 0.02);
+                                        border-radius: 20px;
+                                    "
+                                >
+                                    <button
+                                        id="adb-btn-back"
+                                        class="campaign-action-btn"
+                                        title="Back"
+                                        style="
+                                            width: 44px;
+                                            height: 44px;
+                                            border-radius: 50%;
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: center;
+                                            border: none;
+                                            background: rgba(
+                                                255,
+                                                255,
+                                                255,
+                                                0.05
+                                            );
+                                            color: #fff;
+                                            cursor: pointer;
+                                            transition: 0.2s;
+                                        "
+                                    >
+                                        <i class="fa-solid fa-arrow-left"></i>
+                                    </button>
+                                    <button
+                                        id="adb-btn-home"
+                                        class="campaign-action-btn"
+                                        title="Home"
+                                        style="
+                                            width: 44px;
+                                            height: 44px;
+                                            border-radius: 50%;
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: center;
+                                            border: none;
+                                            background: rgba(
+                                                255,
+                                                255,
+                                                255,
+                                                0.05
+                                            );
+                                            color: #fff;
+                                            cursor: pointer;
+                                            transition: 0.2s;
+                                        "
+                                    >
+                                        <i class="fa-solid fa-circle"></i>
+                                    </button>
+                                    <button
+                                        id="adb-btn-appswitch"
+                                        class="campaign-action-btn"
+                                        title="Recents"
+                                        style="
+                                            width: 44px;
+                                            height: 44px;
+                                            border-radius: 50%;
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: center;
+                                            border: none;
+                                            background: rgba(
+                                                255,
+                                                255,
+                                                255,
+                                                0.05
+                                            );
+                                            color: #fff;
+                                            cursor: pointer;
+                                            transition: 0.2s;
+                                        "
+                                    >
+                                        <i class="fa-solid fa-square"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- RIGHT COLUMN: ADB CONTROLS & UTILITIES -->
+                        <section class="grid-column">
+                            <div class="card" style="height: 100%">
+                                <div class="card-header">
+                                    <h2>
+                                        <i
+                                            class="fa-solid fa-mobile-screen icon"
+                                            style="color: #ea4335"
+                                        ></i>
+                                        Pengendali Android HP (ADB Remote)
+                                    </h2>
+                                </div>
+                                <div
+                                    class="card-body"
+                                    style="
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: 20px;
+                                    "
+                                >
+                                    <!-- Device Info & Settings -->
+                                    <div
+                                        style="
+                                            background: rgba(
+                                                255,
+                                                255,
+                                                255,
+                                                0.02
+                                            );
+                                            padding: 16px;
+                                            border-radius: 12px;
+                                            border: 1px solid
+                                                var(--border-color);
+                                        "
+                                    >
+                                        <h3
+                                            style="
+                                                font-size: 0.95rem;
+                                                margin-bottom: 8px;
+                                                color: #fff;
+                                            "
+                                        >
+                                            <i
+                                                class="fa-solid fa-circle-info"
+                                                style="margin-right: 6px"
+                                            ></i>
+                                            Status Perangkat
+                                        </h3>
+                                        <div
+                                            style="
+                                                display: grid;
+                                                grid-template-columns: auto 1fr;
+                                                gap: 8px;
+                                                font-size: 0.85rem;
+                                            "
+                                        >
+                                            <span
+                                                style="
+                                                    color: var(
+                                                        --color-text-secondary
+                                                    );
+                                                "
+                                                >Koneksi HP:</span
+                                            >
+                                            <span
+                                                id="adb-device-status"
+                                                style="
+                                                    color: var(--color-success);
+                                                    font-weight: 700;
+                                                "
+                                                >TERHUBUNG (ADB)</span
+                                            >
+
+                                            <span
+                                                style="
+                                                    color: var(
+                                                        --color-text-secondary
+                                                    );
+                                                "
+                                                >Mode Pengiriman:</span
+                                            >
+                                            <span
+                                                id="adb-mode-status"
+                                                style="font-weight: 700"
+                                                >OVERRIDE ACTIVE</span
+                                            >
+                                        </div>
+                                    </div>
+
+                                    <!-- Remote Text Typing -->
+                                    <div
+                                        class="form-group"
+                                        style="
+                                            background: rgba(
+                                                255,
+                                                255,
+                                                255,
+                                                0.02
+                                            );
+                                            padding: 16px;
+                                            border-radius: 12px;
+                                            border: 1px solid
+                                                var(--border-color);
+                                        "
+                                    >
+                                        <label
+                                            for="adb-input-text"
+                                            style="
+                                                font-size: 0.95rem;
+                                                margin-bottom: 8px;
+                                                display: block;
+                                                color: #fff;
+                                            "
+                                            ><i
+                                                class="fa-solid fa-keyboard"
+                                                style="margin-right: 6px"
+                                            ></i>
+                                            Ketik Teks ke HP</label
+                                        >
+                                        <div style="display: flex; gap: 8px">
+                                            <input
+                                                type="text"
+                                                id="adb-input-text"
+                                                placeholder="Masukkan teks untuk diketik ke HP..."
+                                                style="
+                                                    flex: 1;
+                                                    padding: 10px 12px;
+                                                    background: var(
+                                                        --color-bg-input
+                                                    );
+                                                    border: 1px solid
+                                                        var(
+                                                            --color-border-input
+                                                        );
+                                                    color: #fff;
+                                                    border-radius: 6px;
+                                                "
+                                            />
+                                            <button
+                                                id="adb-btn-send-text"
+                                                class="submit-btn"
+                                                style="
+                                                    padding: 10px 20px;
+                                                    font-size: 0.85rem;
+                                                    margin-top: 0;
+                                                    background: var(
+                                                        --color-primary
+                                                    );
+                                                    color: #fff;
+                                                    border: none;
+                                                    border-radius: 6px;
+                                                    cursor: pointer;
+                                                    font-weight: 600;
+                                                "
+                                            >
+                                                Ketik
+                                            </button>
+                                        </div>
+                                        <span
+                                            class="input-hint"
+                                            style="
+                                                font-size: 0.72rem;
+                                                color: var(
+                                                    --color-text-secondary
+                                                );
+                                                margin-top: 6px;
+                                                display: block;
+                                            "
+                                            >Teks akan diketik di kolom input
+                                            yang sedang aktif/fokus di layar
+                                            HP.</span
+                                        >
+                                    </div>
+
+                                    <!-- Quick Actions -->
+                                    <div
+                                        style="
+                                            background: rgba(
+                                                255,
+                                                255,
+                                                255,
+                                                0.02
+                                            );
+                                            padding: 16px;
+                                            border-radius: 12px;
+                                            border: 1px solid
+                                                var(--border-color);
+                                        "
+                                    >
+                                        <h3
+                                            style="
+                                                font-size: 0.95rem;
+                                                margin-bottom: 12px;
+                                                color: #fff;
+                                            "
+                                        >
+                                            <i
+                                                class="fa-solid fa-bolt"
+                                                style="margin-right: 6px"
+                                            ></i>
+                                            Aksi Cepat
+                                        </h3>
+                                        <div
+                                            style="
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                gap: 12px;
+                                            "
+                                        >
+                                            <button
+                                                id="adb-btn-power"
+                                                class="campaign-action-btn"
+                                                style="
+                                                    padding: 8px 16px;
+                                                    border-radius: 8px;
+                                                    border: 1px solid
+                                                        rgba(255, 255, 255, 0.1);
+                                                    background: rgba(
+                                                        255,
+                                                        255,
+                                                        255,
+                                                        0.05
+                                                    );
+                                                    color: #fff;
+                                                    cursor: pointer;
+                                                    display: flex;
+                                                    align-items: center;
+                                                    gap: 8px;
+                                                    font-size: 0.85rem;
+                                                    font-weight: 600;
+                                                "
+                                            >
+                                                <i
+                                                    class="fa-solid fa-power-off"
+                                                    style="color: #ea4335"
+                                                ></i>
+                                                Power / Bangunkan Layar
+                                            </button>
+                                            <button
+                                                id="adb-btn-unlock"
+                                                class="campaign-action-btn"
+                                                style="
+                                                    padding: 8px 16px;
+                                                    border-radius: 8px;
+                                                    border: 1px solid
+                                                        rgba(255, 255, 255, 0.1);
+                                                    background: rgba(
+                                                        255,
+                                                        255,
+                                                        255,
+                                                        0.05
+                                                    );
+                                                    color: #fff;
+                                                    cursor: pointer;
+                                                    display: flex;
+                                                    align-items: center;
+                                                    gap: 8px;
+                                                    font-size: 0.85rem;
+                                                    font-weight: 600;
+                                                "
+                                            >
+                                                <i
+                                                    class="fa-solid fa-lock-open"
+                                                    style="
+                                                        color: var(
+                                                            --color-success
+                                                        );
+                                                    "
+                                                ></i>
+                                                Usap / Buka Kunci
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
             </main>
 
             <!-- FOOTER -->
@@ -1612,6 +2157,24 @@
                                     id="edit-campaign-name"
                                     required
                                 />
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-campaign-send-mode"
+                                    >Metode Pengiriman</label
+                                >
+                                <select
+                                    id="edit-campaign-send-mode"
+                                    class="group-select-dropdown"
+                                    required
+                                    style="width: 100%"
+                                >
+                                    <option value="wwebjs">
+                                        WhatsApp Web (wwebjs)
+                                    </option>
+                                    <option value="adb">
+                                        Android ADB (uiautomator2)
+                                    </option>
+                                </select>
                             </div>
                             <div class="form-group">
                                 <label for="edit-campaign-message"

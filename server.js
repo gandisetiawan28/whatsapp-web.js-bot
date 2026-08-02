@@ -57,6 +57,7 @@ let botStatus = 'DISCONNECTED';
 let qrCodeData = null;
 let broadcastInProgress = false;
 let autoReplyConfig = { enabled: true, rules: [] };
+let globalSendMode = 'wwebjs';
 
 function loadRules() {
     try {
@@ -112,7 +113,23 @@ function loadCampaigns() {
         if (fs.existsSync(CAMPAIGNS_FILE)) {
             const data = fs.readFileSync(CAMPAIGNS_FILE, 'utf8');
             campaigns = JSON.parse(data);
+
+            // Reset any campaigns stuck in PROCESSING to PAUSED on startup
+            let resetCount = 0;
+            campaigns.forEach((c) => {
+                if (c.status === 'PROCESSING') {
+                    c.status = 'PAUSED';
+                    resetCount++;
+                }
+            });
+            if (resetCount > 0) {
+                console.log(
+                    `Reset ${resetCount} stuck campaign status(es) to PAUSED.`,
+                );
+            }
+
             console.log('Campaigns loaded successfully.');
+            saveCampaigns();
         } else {
             saveCampaigns();
         }
@@ -587,6 +604,64 @@ function resolveSpintax(text) {
     return newText;
 }
 
+const { spawn, exec } = require('child_process');
+
+function sendAdbMessage(phone, message) {
+    return new Promise((resolve, reject) => {
+        const pythonScriptPath = path.join(
+            __dirname,
+            'adb-automation',
+            'adb_sender.py',
+        );
+        console.log(
+            `[ADB SENDER] Spawning Python script to send message to ${phone}`,
+        );
+
+        const pythonProcess = spawn('python', [
+            pythonScriptPath,
+            '--phone',
+            phone,
+            '--message',
+            message,
+        ]);
+
+        let stdout = '';
+        let stderr = '';
+
+        pythonProcess.stdout.on('data', (data) => {
+            stdout += data.toString();
+        });
+
+        pythonProcess.stderr.on('data', (data) => {
+            stderr += data.toString();
+        });
+
+        pythonProcess.on('close', (code) => {
+            if (code === 0) {
+                console.log(
+                    `[ADB SENDER] Python script success: ${stdout.trim()}`,
+                );
+                resolve(stdout);
+            } else {
+                console.error(
+                    `[ADB SENDER] Python script failed with code ${code}. Stderr: ${stderr}`,
+                );
+                reject(
+                    new Error(
+                        stderr.trim() ||
+                            `Python script exited with code ${code}`,
+                    ),
+                );
+            }
+        });
+
+        pythonProcess.on('error', (err) => {
+            console.error('[ADB SENDER] Failed to start Python process:', err);
+            reject(new Error(`Failed to start python: ${err.message}`));
+        });
+    });
+}
+
 // ==========================================
 // CAMPAIGN RUNNER: SCHEDULER & SENDER
 // ==========================================
@@ -622,7 +697,7 @@ async function runCampaign(campaignId) {
         }
 
         const recipient = currentCampaign.recipients[i];
-        if (recipient.status === 'SENT') {
+        if (recipient.status === 'SENT' || recipient.status === 'FAILED') {
             continue;
         }
 
@@ -636,25 +711,30 @@ async function runCampaign(campaignId) {
             continue;
         }
 
+        const activeSendMode =
+            globalSendMode === 'adb' ? 'adb' : currentCampaign.sendMode;
+
         // Resolusi JID/LID menggunakan getNumberId sebelum kirim pesan
         let formattedNumber = null;
-        try {
-            const numberId = await client.getNumberId(cleanNumber);
-            if (numberId) {
-                formattedNumber = numberId._serialized;
-            } else {
+        if (activeSendMode !== 'adb') {
+            try {
+                const numberId = await client.getNumberId(cleanNumber);
+                if (numberId) {
+                    formattedNumber = numberId._serialized;
+                } else {
+                    recipient.status = 'FAILED';
+                    recipient.error = 'Nomor tidak terdaftar di WhatsApp';
+                    saveCampaigns();
+                    io.emit('campaign-update', currentCampaign);
+                    continue;
+                }
+            } catch (err) {
                 recipient.status = 'FAILED';
-                recipient.error = 'Nomor tidak terdaftar di WhatsApp';
+                recipient.error = `Gagal verifikasi nomor: ${err.message}`;
                 saveCampaigns();
                 io.emit('campaign-update', currentCampaign);
                 continue;
             }
-        } catch (err) {
-            recipient.status = 'FAILED';
-            recipient.error = `Gagal verifikasi nomor: ${err.message}`;
-            saveCampaigns();
-            io.emit('campaign-update', currentCampaign);
-            continue;
         }
 
         let personalizedMsg = currentCampaign.message
@@ -664,38 +744,49 @@ async function runCampaign(campaignId) {
         // Resolve spintax (contoh: {Halo|Hai|Selamat pagi})
         personalizedMsg = resolveSpintax(personalizedMsg);
 
-        // Simulasi Mengetik (Typing Presence)
-        try {
-            await client.pupPage.evaluate(async (chatId) => {
-                await window.WWebJS.sendChatstate('typing', chatId);
-            }, formattedNumber);
+        if (activeSendMode !== 'adb') {
+            // Simulasi Mengetik (Typing Presence)
+            try {
+                await client.pupPage.evaluate(async (chatId) => {
+                    await window.WWebJS.sendChatstate('typing', chatId);
+                }, formattedNumber);
 
-            // Delay mengetik proporsional: 40ms per karakter (min 2 detik, max 7 detik)
-            const typingDelay = Math.min(
-                Math.max(personalizedMsg.length * 40, 2000),
-                7000,
-            );
-            await new Promise((resolve) => setTimeout(resolve, typingDelay));
+                // Delay mengetik proporsional: 40ms per karakter (min 2 detik, max 7 detik)
+                const typingDelay = Math.min(
+                    Math.max(personalizedMsg.length * 40, 2000),
+                    7000,
+                );
+                await new Promise((resolve) =>
+                    setTimeout(resolve, typingDelay),
+                );
 
-            // Matikan status mengetik setelah selesai
-            await client.pupPage
-                .evaluate(async (chatId) => {
-                    await window.WWebJS.sendChatstate('stop', chatId);
-                }, formattedNumber)
-                .catch(() => {});
-        } catch (e) {
-            console.log(
-                `[DEBUG] Lewati simulasi mengetik untuk ${cleanNumber}:`,
-                e.message,
-            );
+                // Matikan status mengetik setelah selesai
+                await client.pupPage
+                    .evaluate(async (chatId) => {
+                        await window.WWebJS.sendChatstate('stop', chatId);
+                    }, formattedNumber)
+                    .catch(() => {});
+            } catch (e) {
+                console.log(
+                    `[DEBUG] Lewati simulasi mengetik untuk ${cleanNumber}:`,
+                    e.message,
+                );
+            }
+        } else {
+            // Untuk ADB, berikan jeda statis sebelum mulai proses kirim
+            await new Promise((resolve) => setTimeout(resolve, 2000));
         }
 
         try {
             logToFrontend(
                 'CAMPAIGN',
-                `[Projek: ${currentCampaign.name}] Mengirim ke ${recipient.name} (${cleanNumber})...`,
+                `[Projek: ${currentCampaign.name}] Mengirim ke ${recipient.name} (${cleanNumber}) via ${activeSendMode === 'adb' ? 'ADB' : 'WhatsApp Web'}...`,
             );
-            await client.sendMessage(formattedNumber, personalizedMsg);
+            if (activeSendMode === 'adb') {
+                await sendAdbMessage(cleanNumber, personalizedMsg);
+            } else {
+                await client.sendMessage(formattedNumber, personalizedMsg);
+            }
 
             recipient.status = 'SENT';
             recipient.sentAt = new Date().toISOString();
@@ -712,44 +803,74 @@ async function runCampaign(campaignId) {
         saveCampaigns();
         io.emit('campaign-update', currentCampaign);
 
-        // Batch cooling down: Tiap 10 pesan sukses/gagal dikirim
-        sentCount++;
         const pendingCount = currentCampaign.recipients.filter(
             (r) => r.status === 'PENDING',
         ).length;
 
         if (pendingCount > 0) {
-            if (sentCount % 10 === 0) {
-                // Istirahat pendinginan yang lebih lama agar menyerupai perilaku manusia (60 - 120 detik)
-                const coolDown = Math.floor(Math.random() * 60000) + 60000;
-                logToFrontend(
-                    'CAMPAIGN',
-                    `Batch limit tercapai (10 pesan). Istirahat pendinginan selama ${
-                        coolDown / 1000
-                    } detik untuk menghindari deteksi spam/bot...`,
-                );
-                for (let d = 0; d < coolDown; d += 1000) {
-                    await new Promise((resolve) => setTimeout(resolve, 1000));
-                    const checkCampaign = campaigns.find(
-                        (c) => c.id === campaignId,
+            if (recipient.status === 'SENT') {
+                sentCount++;
+                const isAdb = activeSendMode === 'adb';
+                if (sentCount % 10 === 0) {
+                    // Istirahat pendinginan yang lebih lama agar menyerupai perilaku manusia (ADB: 10-20s, Web: 60-120s)
+                    const coolDown = isAdb
+                        ? Math.floor(Math.random() * 10000) + 10000
+                        : Math.floor(Math.random() * 60000) + 60000;
+                    logToFrontend(
+                        'CAMPAIGN',
+                        `Batch limit tercapai (10 pesan). Istirahat pendinginan selama ${
+                            coolDown / 1000
+                        } detik...`,
                     );
-                    if (
-                        !checkCampaign ||
-                        checkCampaign.status !== 'PROCESSING'
-                    ) {
-                        runningCampaigns.delete(campaignId);
-                        return;
+                    for (let d = 0; d < coolDown; d += 1000) {
+                        await new Promise((resolve) =>
+                            setTimeout(resolve, 1000),
+                        );
+                        const checkCampaign = campaigns.find(
+                            (c) => c.id === campaignId,
+                        );
+                        if (
+                            !checkCampaign ||
+                            checkCampaign.status !== 'PROCESSING'
+                        ) {
+                            runningCampaigns.delete(campaignId);
+                            return;
+                        }
+                    }
+                } else {
+                    // Jeda acak antar-pesan (ADB: 4-8s, Web: 30-60s)
+                    const delay = isAdb
+                        ? Math.floor(Math.random() * 4000) + 4000
+                        : Math.floor(Math.random() * 30000) + 30000;
+                    logToFrontend(
+                        'CAMPAIGN',
+                        `Jeda aman acak: menunggu ${delay / 1000} detik...`,
+                    );
+
+                    for (let d = 0; d < delay; d += 1000) {
+                        await new Promise((resolve) =>
+                            setTimeout(resolve, 1000),
+                        );
+                        const checkCampaign = campaigns.find(
+                            (c) => c.id === campaignId,
+                        );
+                        if (
+                            !checkCampaign ||
+                            checkCampaign.status !== 'PROCESSING'
+                        ) {
+                            runningCampaigns.delete(campaignId);
+                            return;
+                        }
                     }
                 }
             } else {
-                // Jeda acak antar-pesan yang lebih aman dan manusiawi (30 - 60 detik)
-                const delay = Math.floor(Math.random() * 30000) + 30000;
+                // Jika gagal, berikan jeda singkat saja (2 detik) untuk transisi antar nomor
+                const failDelay = 2000;
                 logToFrontend(
                     'CAMPAIGN',
-                    `Jeda aman acak: menunggu ${delay / 1000} detik...`,
+                    `Pengiriman gagal. Menunggu ${failDelay / 1000} detik sebelum lanjut ke penerima berikutnya...`,
                 );
-
-                for (let d = 0; d < delay; d += 1000) {
+                for (let d = 0; d < failDelay; d += 1000) {
                     await new Promise((resolve) => setTimeout(resolve, 1000));
                     const checkCampaign = campaigns.find(
                         (c) => c.id === campaignId,
@@ -785,6 +906,23 @@ async function runCampaign(campaignId) {
 // Helper for human-like response delay (read delay + typing delay proportional to response length)
 // Helper for human-like response delay (read delay + typing delay proportional to response length)
 async function sendNaturalReply(msg, replyText, senderPhone) {
+    if (globalSendMode === 'adb') {
+        const cleanPhone = senderPhone || msg.from.split('@')[0];
+        console.log(
+            `[SYSTEM] Sending AI/Auto-reply to ${cleanPhone} via Android ADB...`,
+        );
+        try {
+            await sendAdbMessage(cleanPhone, replyText);
+            console.log(`[SYSTEM] AI/Auto-reply sent successfully via ADB.`);
+        } catch (error) {
+            console.error(
+                `[SYSTEM] Gagal mengirim AI/Auto-reply via ADB:`,
+                error.message,
+            );
+        }
+        return;
+    }
+
     try {
         const jids = [msg.from];
         if (senderPhone) {
@@ -1172,9 +1310,158 @@ client.on('message', async (msg) => {
 });
 
 // Socket.io Connection Handler
+let activeMirrorClients = new Set();
+let mirrorLoopTimeout = null;
+let cachedAdbResolution = null;
+
+function getAdbResolution() {
+    return new Promise((resolve) => {
+        exec('adb shell wm size', (err, stdout) => {
+            if (err) {
+                console.error(
+                    '[ADB RESOLUTION] Error fetching resolution, using default 1080x2400:',
+                    err.message,
+                );
+                resolve({ width: 1080, height: 2400 });
+                return;
+            }
+            const match = stdout.match(/Physical size:\s*(\d+)x(\d+)/i);
+            if (match) {
+                const width = parseInt(match[1]);
+                const height = parseInt(match[2]);
+                console.log(
+                    `[ADB RESOLUTION] Detected device resolution: ${width}x${height}`,
+                );
+                resolve({ width, height });
+            } else {
+                resolve({ width: 1080, height: 2400 });
+            }
+        });
+    });
+}
+
+function startAdbMirrorLoop() {
+    if (activeMirrorClients.size === 0 || mirrorLoopTimeout) return;
+
+    const runCapture = () => {
+        if (activeMirrorClients.size === 0) {
+            mirrorLoopTimeout = null;
+            return;
+        }
+
+        const adb = spawn('adb', ['exec-out', 'screencap', '-p']);
+        let chunks = [];
+
+        adb.stdout.on('data', (chunk) => {
+            chunks.push(chunk);
+        });
+
+        adb.on('close', (code) => {
+            if (code === 0) {
+                const buffer = Buffer.concat(chunks);
+                if (buffer.length > 0) {
+                    const base64Data = buffer.toString('base64');
+                    io.emit('adb-screen', base64Data);
+                }
+            }
+            mirrorLoopTimeout = setTimeout(runCapture, 500); // 500ms delay between frames
+        });
+
+        adb.on('error', (err) => {
+            console.error('[ADB SCREEN] Error capturing screen:', err.message);
+            mirrorLoopTimeout = setTimeout(runCapture, 1500); // longer delay if error
+        });
+    };
+
+    runCapture();
+}
+
+function stopAdbMirrorLoop() {
+    if (activeMirrorClients.size === 0 && mirrorLoopTimeout) {
+        clearTimeout(mirrorLoopTimeout);
+        mirrorLoopTimeout = null;
+    }
+}
+
 io.on('connection', (socket) => {
     console.log('Koneksi dashboard terhubung ke WebSocket');
     socket.emit('status-update', { status: botStatus, qrCode: qrCodeData });
+    socket.emit('global-mode-update', globalSendMode);
+
+    socket.on('start-adb-mirror', () => {
+        console.log(`Socket ${socket.id} started viewing ADB screen`);
+        activeMirrorClients.add(socket.id);
+        startAdbMirrorLoop();
+    });
+
+    socket.on('stop-adb-mirror', () => {
+        console.log(`Socket ${socket.id} stopped viewing ADB screen`);
+        activeMirrorClients.delete(socket.id);
+        stopAdbMirrorLoop();
+    });
+
+    socket.on('set-global-mode', (mode) => {
+        if (mode === 'wwebjs' || mode === 'adb') {
+            globalSendMode = mode;
+            console.log(
+                `[SETTINGS] Global Send Mode updated to: ${globalSendMode}`,
+            );
+            io.emit('global-mode-update', globalSendMode);
+        }
+    });
+
+    socket.on('adb-tap', async (coords) => {
+        if (
+            typeof coords !== 'object' ||
+            coords.x === undefined ||
+            coords.y === undefined
+        )
+            return;
+        try {
+            if (!cachedAdbResolution) {
+                cachedAdbResolution = await getAdbResolution();
+            }
+            const absX = Math.round(coords.x * cachedAdbResolution.width);
+            const absY = Math.round(coords.y * cachedAdbResolution.height);
+            console.log(
+                `[ADB INPUT] Tapping at coordinates: (${absX}, ${absY})`,
+            );
+            exec(`adb shell input tap ${absX} ${absY}`, (err) => {
+                if (err) console.error(`[ADB INPUT] Tap error:`, err.message);
+            });
+        } catch (err) {
+            console.error('[ADB INPUT] Tap resolution error:', err.message);
+        }
+    });
+
+    socket.on('adb-keyevent', (keycode) => {
+        if (!keycode) return;
+        console.log(`[ADB INPUT] Keyevent: ${keycode}`);
+        exec(`adb shell input keyevent ${keycode}`, (err) => {
+            if (err) console.error(`[ADB INPUT] Keyevent error:`, err.message);
+        });
+    });
+
+    socket.on('adb-text', (text) => {
+        if (typeof text !== 'string') return;
+        console.log(`[ADB INPUT] Typing text: ${text}`);
+        // Replace spaces with %s and escape characters for shell
+        const escapedText = text.replace(/[^a-zA-Z0-9.,!?@-]/g, (char) => {
+            if (char === ' ') return '%s';
+            return ''; // strip out other special chars
+        });
+        exec(`adb shell input text ${escapedText}`, (err) => {
+            if (err)
+                console.error(`[ADB INPUT] Text input error:`, err.message);
+        });
+    });
+
+    socket.on('disconnect', () => {
+        if (activeMirrorClients.has(socket.id)) {
+            activeMirrorClients.delete(socket.id);
+            stopAdbMirrorLoop();
+        }
+    });
 });
 
 // ================== API ENDPOINTS ==================
@@ -1247,7 +1534,7 @@ app.get('/api/chats/:id/messages', async (req, res) => {
 app.post('/api/send', async (req, res) => {
     const { to, message } = req.body;
 
-    if (botStatus !== 'READY') {
+    if (globalSendMode !== 'adb' && botStatus !== 'READY') {
         return res
             .status(400)
             .json({ success: false, error: 'WhatsApp belum siap.' });
@@ -1260,6 +1547,23 @@ app.post('/api/send', async (req, res) => {
     }
 
     let cleanNumber = to.replace(/\D/g, '');
+
+    if (globalSendMode === 'adb') {
+        try {
+            logToFrontend('SEND', `Mengirim pesan tunggal ke ${to} via ADB...`);
+            await sendAdbMessage(cleanNumber, message);
+            logToFrontend('SEND', `Pesan sukses terkirim ke ${to} via ADB`);
+            res.json({ success: true });
+        } catch (error) {
+            logToFrontend(
+                'ERROR',
+                `Gagal mengirim ke ${to} via ADB: ${error.message}`,
+            );
+            res.status(500).json({ success: false, error: error.message });
+        }
+        return;
+    }
+
     if (!cleanNumber.endsWith('@c.us') && !cleanNumber.endsWith('@g.us')) {
         cleanNumber = `${cleanNumber}@c.us`;
     }
@@ -1327,7 +1631,7 @@ app.post('/api/send-media', async (req, res) => {
 app.post('/api/broadcast', async (req, res) => {
     const { numbers, message } = req.body;
 
-    if (botStatus !== 'READY') {
+    if (globalSendMode !== 'adb' && botStatus !== 'READY') {
         return res
             .status(400)
             .json({ success: false, error: 'WhatsApp belum siap.' });
@@ -1381,9 +1685,13 @@ app.post('/api/broadcast', async (req, res) => {
             try {
                 logToFrontend(
                     'BROADCAST',
-                    `[${i + 1}/${numbers.length}] Mengirim ke ${cleanNumber}...`,
+                    `[${i + 1}/${numbers.length}] Mengirim ke ${cleanNumber} via ${globalSendMode === 'adb' ? 'ADB' : 'WhatsApp Web'}...`,
                 );
-                await client.sendMessage(formattedNumber, message);
+                if (globalSendMode === 'adb') {
+                    await sendAdbMessage(cleanNumber, message);
+                } else {
+                    await client.sendMessage(formattedNumber, message);
+                }
                 logToFrontend(
                     'BROADCAST',
                     `✅ Sukses terkirim ke ${cleanNumber}`,
@@ -1559,7 +1867,7 @@ app.get('/api/campaigns', (req, res) => {
 
 // Create New Campaign
 app.post('/api/campaigns', (req, res) => {
-    const { name, message, recipients } = req.body;
+    const { name, message, recipients, sendMode } = req.body;
 
     if (
         !name ||
@@ -1582,6 +1890,7 @@ app.post('/api/campaigns', (req, res) => {
             Math.random().toString(36).substr(2, 5),
         name,
         message,
+        sendMode: sendMode || 'wwebjs',
         recipients: recipients.map((r) => ({
             phone: r.phone.replace(/\D/g, ''),
             name: r.name || 'Pelanggan',
@@ -1616,10 +1925,17 @@ app.put('/api/campaigns/:id', (req, res) => {
             .json({ success: false, error: 'Projek siaran tidak ditemukan.' });
     }
 
-    const { name, message, recipients, aiConfig: reqAiConfig } = req.body;
+    const {
+        name,
+        message,
+        recipients,
+        sendMode,
+        aiConfig: reqAiConfig,
+    } = req.body;
 
     if (name !== undefined) campaign.name = name;
     if (message !== undefined) campaign.message = message;
+    if (sendMode !== undefined) campaign.sendMode = sendMode;
 
     if (recipients !== undefined && Array.isArray(recipients)) {
         const currentRecipients = campaign.recipients;
@@ -1690,10 +2006,12 @@ app.post('/api/campaigns/:id/start', (req, res) => {
             .json({ success: false, error: 'Projek siaran tidak ditemukan.' });
     }
 
-    if (botStatus !== 'READY') {
-        return res
-            .status(400)
-            .json({ success: false, error: 'WhatsApp belum siap.' });
+    const activeSendMode = globalSendMode === 'adb' ? 'adb' : campaign.sendMode;
+    if (activeSendMode !== 'adb' && botStatus !== 'READY') {
+        return res.status(400).json({
+            success: false,
+            error: 'WhatsApp Web belum siap. (Kecuali menggunakan Metode ADB)',
+        });
     }
 
     if (campaign.status === 'PROCESSING') {
